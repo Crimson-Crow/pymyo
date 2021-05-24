@@ -1,5 +1,9 @@
 import time
+import asyncio
 from pymyo import Myo, MyoListener, Arm, XDirection, SleepMode, EmgMode, ImuMode, ClassifierMode
+
+import nest_asyncio
+nest_asyncio.apply()
 
 MYO_ADDRESS = 'CC:B3:25:0D:5B:C3'
 
@@ -35,7 +39,7 @@ class MyCustomListener(MyoListener):
         print('Batt:', battery)
 
 
-def main():
+async def main():
     with Myo(MYO_ADDRESS) as myo:
         print('Device name:', myo.name)
         # myo.name = 'test'
@@ -55,16 +59,14 @@ def main():
 
         myo.vibrate2(((250, 255), (250, 128), (250, 255), (0, 0), (0, 0), (0, 0)))
 
-        time.sleep(2)
-        print('Starting config')
+        await asyncio.sleep(2)
 
         myo.sleep_mode = SleepMode.NEVER_SLEEP
-        myo.emg_mode = EmgMode.EMG
-        # myo.imu_mode = ImuMode.EVENTS
-        # myo.classifier_mode = ClassifierMode.DISABLED
-        while True:
-            time.sleep(10)
-
+        myo.emg_mode = EmgMode.NONE
+        myo.imu_mode = ImuMode.NONE
+        myo.classifier_mode = ClassifierMode.DISABLED
+        asyncio.get_running_loop().run_forever()
 
 if __name__ == '__main__':
-    main()
+    # main()
+    asyncio.run(main())

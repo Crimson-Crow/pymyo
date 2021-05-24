@@ -161,6 +161,9 @@ class _Handle(IntEnum):
     INFO = 0x14
     FIRMWARE = 0x16
     COMMAND = 0x18
+
+
+ class _NotifHandle(IntEnum):
     IMU = 0x1b
     MOTION = 0x1e
     CLASSIFIER = 0x22
@@ -203,18 +206,33 @@ class _Backend:
 class Myo:
     def __init__(self, address: str, **kwargs) -> None:
         self._device = _Backend(address, **kwargs)
-        self._device.connect()
-
-        # Prepare listener list
         self._listeners = []
 
-        # Read persistent values
-        info_hex = self._device.read_gatt_char(_Handle.INFO)
-        firmware_version_hex = self._device.read_gatt_char(_Handle.FIRMWARE)
-        # Unpack values
+        self._serial_number = None
+        self._unlock_pose = None
+        self._active_classifier_type = None
+        self._active_classifier_index = None
+        self._has_custom_classifier = None
+        self._stream_indicating = None
+        self._sku = None
+        self._firmware_version = None
+        self._emg_mode = EmgMode.NONE
+        self._imu_mode = ImuMode.NONE
+        self._classifier_mode = ClassifierMode.DISABLED
+        self._sleep_mode = SleepMode.NORMAL
+
+    def __enter__(self):
+        self.connect()
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.disconnect()
+
+    def connect(self) -> None:
+        self._device.connect()
         serial_number, unlock_pose, active_classifier_type, active_classifier_index, has_custom_classifier, stream_indicating, sku, _ = struct.unpack(
-            '<6sH5B7s', info_hex)
-        major, minor, patch, hardware_rev = struct.unpack('<4H', firmware_version_hex)
+            '<6sH5B7s', self._device.read_gatt_char(_Handle.INFO))
+        major, minor, patch, hardware_rev = struct.unpack('<4H', self._device.read_gatt_char(_Handle.FIRMWARE))
         # Assign values to properties
         self._serial_number = serial_number
         self._unlock_pose = Pose(unlock_pose)
@@ -225,22 +243,8 @@ class Myo:
         self._sku = SKU(sku)
         self._firmware_version = FirmwareVersion(major, minor, patch, HardwareRev(hardware_rev))
 
-        for handle in (
-                _Handle.IMU, _Handle.MOTION, _Handle.CLASSIFIER, _Handle.EMG_FILT, _Handle.EMG0, _Handle.EMG1,
-                _Handle.EMG2, _Handle.EMG3):
-            print(handle)
+        for handle in _NotifHandle:
             self._device.start_notify(handle, self._on_notification)
-
-        self._emg_mode = EmgMode.NONE
-        self._imu_mode = ImuMode.NONE
-        self._classifier_mode = ClassifierMode.DISABLED
-        self._sleep_mode = SleepMode.NORMAL
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exc_type, exc, tb):
-        self.disconnect()
 
     def disconnect(self) -> None:
         self._device.disconnect()
@@ -260,10 +264,10 @@ class Myo:
         return ord(self._device.read_gatt_char(_Handle.BATTERY))
 
     def subscribe_battery(self) -> None:
-        self._device.subscribe_handle(_Handle.BATTERY)
+        self._device.start_notify(_Handle.BATTERY)
 
     def unsubscribe_battery(self) -> None:
-        self._device.unsubscribe_handle(_Handle.BATTERY)
+        self._device.stop_notify(_Handle.BATTERY)
 
     @property
     def serial_number(self) -> bytes:
@@ -312,29 +316,8 @@ class Myo:
 
     @emg_mode.setter
     def emg_mode(self, value: Union[EmgMode, int]) -> None:
-        # old_value =
         value = EmgMode(value)
         if self._emg_mode != value:
-            # # Unsubscribe from previous mode's characteristic(s)
-            # if old_value == EmgMode.FILT:
-            #     self._device.unsubscribe_handle(_Handle.EMG_FILT)
-            # elif (old_value == EmgMode.EMG and value != EmgMode.EMG_RAW) or (
-            #         old_value == EmgMode.EMG_RAW and value != EmgMode.EMG):
-            #     self._device.unsubscribe_handle(_Handle.EMG0)
-            #     self._device.unsubscribe_handle(_Handle.EMG1)
-            #     self._device.unsubscribe_handle(_Handle.EMG2)
-            #     self._device.unsubscribe_handle(_Handle.EMG3)
-            #
-            # # Subscribe to the new mode's characteristic(s)
-            # if value == EmgMode.FILT:
-            #     self._device.subscribe_handle(_Handle.EMG_FILT)
-            # elif (value == EmgMode.EMG and old_value != EmgMode.EMG_RAW) or (
-            #         value == EmgMode.EMG_RAW and old_value != EmgMode.EMG):
-            #     self._device.subscribe_handle(_Handle.EMG0)
-            #     self._device.subscribe_handle(_Handle.EMG1)
-            #     self._device.subscribe_handle(_Handle.EMG2)
-            #     self._device.subscribe_handle(_Handle.EMG3)
-
             self._set_mode(value, self.imu_mode, self.classifier_mode)
             self._emg_mode = value
 
@@ -345,23 +328,8 @@ class Myo:
 
     @imu_mode.setter
     def imu_mode(self, value: Union[ImuMode, int]) -> None:
-        # old_value = self._imu_mode
         value = ImuMode(value)
         if self._imu_mode != value:
-            # if (
-            #         old_value == ImuMode.NONE or old_value == ImuMode.EVENTS) and value != ImuMode.NONE and value != ImuMode.EVENTS:
-            #     self._device.subscribe_handle(_Handle.IMU)
-            # elif (
-            #         value == ImuMode.NONE or value == ImuMode.EVENTS) and old_value != ImuMode.NONE and old_value != ImuMode.EVENTS:
-            #     self._device.unsubscribe_handle(_Handle.IMU)
-            #
-            # if old_value != ImuMode.ALL and old_value != ImuMode.EVENTS and (
-            #         value == ImuMode.ALL or value == ImuMode.EVENTS):
-            #     self._device.subscribe_handle(_Handle.MOTION, True)
-            # elif (
-            #         old_value == ImuMode.ALL or old_value == ImuMode.EVENTS) and value != ImuMode.ALL and value != ImuMode.EVENTS:
-            #     self._device.unsubscribe_handle(_Handle.MOTION)
-
             self._set_mode(self.emg_mode, value, self.classifier_mode)
             self._imu_mode = value
 
@@ -374,11 +342,6 @@ class Myo:
     def classifier_mode(self, value: Union[ClassifierMode, int]) -> None:
         value = ClassifierMode(value)
         if self._classifier_mode != value:
-            # if value:
-            #     self._device.subscribe_handle(_Handle.CLASSIFIER, True)
-            # else:
-            #     self._device.unsubscribe_handle(_Handle.CLASSIFIER)
-
             self._set_mode(self.emg_mode, self.imu_mode, value)
             self._classifier_mode = value
 
@@ -416,8 +379,8 @@ class Myo:
     def vibrate2(self, steps: Tuple[
         Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int]]) -> None:
         """Extended vibration command. TODO add better description."""
-        # if len(steps) != 6:
-        #     raise ValueError(f'Expected 6 vibration steps (got {len(steps)})')
+        if len(steps) != 6:
+            raise ValueError(f'Expected 6 vibration steps (got {len(steps)})')
         self._send_command(struct.pack('<2B' + 6 * 'HB', 7, 20, *sum(steps, ())))
 
     def unlock(self, unlock_type: Union[UnlockType, int]) -> None:
@@ -435,38 +398,38 @@ class Myo:
     def detach(self, listener: 'MyoListener') -> None:
         self._listeners.remove(listener)
 
-    def _set_mode(self, emg_mode, imu_mode, classifier_mode):
-        self._send_command(struct.pack('<5B', 1, 3, emg_mode, imu_mode, classifier_mode))
+    def set_mode(self, emg_mode: Union[EmgMode, int], imu_mode: Union[ImuMode, int], classifier_mode: Union[ClassifierMode, int]):
+        self._send_command(struct.pack('<5B', 1, 3, EmgMode(emg_mode), ImuMode(imu_mode), ClassifierMode(classifier_mode)))
 
     def _send_command(self, command):
         self._device.write_gatt_char(_Handle.COMMAND, command)
 
     def _on_notification(self, handle: int, value: bytearray):
-        if _Handle.EMG0 <= handle <= _Handle.EMG3:
+        if _NotifHandle.EMG0 <= handle <= _NotifHandle.EMG3:
             emg = struct.unpack('<16b', value)
             for listener in self._listeners:
                 listener.on_emg(self, (emg[:8], emg[8:]))
-        elif handle == _Handle.EMG_FILT:
+        elif handle == _NotifHandle.EMG_FILT:
             emg = struct.unpack('<8H', value[:16])  # Ignoring last byte
             for listener in self._listeners:
                 listener.on_emg_filt(self, emg)
-        elif handle == _Handle.IMU:
+        elif handle == _NotifHandle.IMU:
             imu_data = struct.unpack('<10h', value)
             quat = tuple(x / 16384 for x in imu_data[:4])
             acc = tuple(x / 2048 for x in imu_data[4:7])
             gyro = tuple(x / 16 for x in imu_data[7:10])
             for listener in self._listeners:
                 listener.on_imu(self, quat, acc, gyro)
-        elif handle == _Handle.MOTION:
+        elif handle == _NotifHandle.MOTION:
             event_type, event_data = struct.unpack('<B2s', value)
             event_type = MotionEventType(event_type)
             for listener in self._listeners:
                 listener.on_motion(self, event_type, event_data)
-        elif handle == _Handle.CLASSIFIER:
+        elif handle == _NotifHandle.CLASSIFIER:
             event_type, event_data, _ = struct.unpack('<B2s3s', value)
             for listener in self._listeners:
                 listener.on_classifier(self, event_type, event_data)
-        elif handle == _Handle.BATTERY:
+        elif handle == _NotifHandle.BATTERY:
             for listener in self._listeners:
                 listener.on_battery(self, ord(value))
 

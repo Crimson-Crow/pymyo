@@ -1,50 +1,16 @@
-import time
 import asyncio
-from pymyo import Myo, MyoListener, Arm, XDirection, SleepMode, EmgMode, ImuMode, ClassifierMode
-
-import nest_asyncio
-nest_asyncio.apply()
+from pymyo import Myo, Arm, XDirection, SleepMode, EmgMode, ImuMode, ClassifierMode, Event
+import time
 
 MYO_ADDRESS = 'CC:B3:25:0D:5B:C3'
 
 
-class MyCustomListener(MyoListener):
-    def on_emg(self, device, emg):
-        print('EMG:', *emg)
-
-    def on_emg_filt(self, device, emg):
-        print('Filtered EMG:', emg)
-
-    def on_imu(self, device, quat, acc, gyro):
-        print('IMU:', quat, acc, gyro)
-
-    def on_tap(self, device, tap_direction, tap_count):
-        print('Tap:', tap_direction, tap_count)
-
-    def on_sync(self, device, failed, arm, x_direction):
-        if failed:
-            print('Sync: failed, please perform sync gesture')
-        elif arm == Arm.UNKNOWN and x_direction == XDirection.UNKNOWN:
-            print('Sync: removed from arm')
-        else:
-            print('Sync:', arm, x_direction)
-
-    def on_pose(self, device, pose):
-        print('Pose:', pose)
-
-    def on_lock(self, device, locked):
-        print('Lock:', locked)
-
-    def on_battery(self, device, battery):
-        print('Batt:', battery)
-
-
 async def main():
-    with Myo(MYO_ADDRESS) as myo:
-        print('Device name:', myo.name)
+    async with Myo(MYO_ADDRESS) as myo:
+        print('Device name:', await myo.name)
         # myo.name = 'test'
         # print('Device name:', myo.name)
-        print('Battery level:', myo.battery)
+        print('Battery level:', await myo.battery)
         print('Serial number:', myo.serial_number)
         print('Firmware version:', myo.firmware_version)
         print('Unlock pose:', myo.unlock_pose)
@@ -54,19 +20,28 @@ async def main():
         print('Has custom classifier:', myo.has_custom_classifier)
         print('SKU:', myo.sku)
 
-        listener = MyCustomListener()
-        myo.attach(listener)
+        await myo.vibrate2(((250, 255), (250, 128), (250, 255), (0, 0), (0, 0), (0, 0)))
 
-        myo.vibrate2(((250, 255), (250, 128), (250, 255), (0, 0), (0, 0), (0, 0)))
+        from collections import deque
+        time_log = deque([], 100)
 
-        await asyncio.sleep(2)
+        last_call_time = time.time()
 
-        myo.sleep_mode = SleepMode.NEVER_SLEEP
-        myo.emg_mode = EmgMode.NONE
-        myo.imu_mode = ImuMode.NONE
-        myo.classifier_mode = ClassifierMode.DISABLED
-        asyncio.get_running_loop().run_forever()
+        @myo.bind(Event.EMG)
+        def on_emg(emg):
+            nonlocal last_call_time
+            new_call_time = time.time()
+            time_diff = new_call_time - last_call_time
+            time_log.append(time_diff)
+            print(sum(time_log)/len(time_log))
+            last_call_time = new_call_time
+
+        await myo.set_sleep_mode(SleepMode.NEVER_SLEEP)
+        await myo.set_mode(emg_mode=EmgMode.EMG)
+
+        while True:
+            await asyncio.sleep(1)
 
 if __name__ == '__main__':
-    # main()
     asyncio.run(main())
+

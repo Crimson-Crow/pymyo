@@ -1,5 +1,5 @@
 import asyncio
-from pymyo import Myo, Arm, XDirection, SleepMode, EmgMode, ImuMode, ClassifierMode, Event
+from pymyo import Myo, SleepMode, EmgMode, ImuMode, ClassifierMode
 import time
 
 MYO_ADDRESS = 'CC:B3:25:0D:5B:C3'
@@ -27,7 +27,7 @@ async def main():
 
         last_call_time = time.time()
 
-        @myo.bind(Event.EMG)
+        @myo.bind(Myo.Event.EMG)
         def on_emg(emg):
             nonlocal last_call_time
             new_call_time = time.time()

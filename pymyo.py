@@ -4,7 +4,7 @@ from typing import NamedTuple, Tuple, Union
 
 from bleak import BleakClient
 from async_property import async_property
-from event_dispatch import Dispatcher
+from pyobservable import Observable
 
 
 class Pose(IntEnum):
@@ -156,39 +156,36 @@ class XDirection(IntEnum):
     UNKNOWN = 0xff
 
 
-class _Handle(IntEnum):
-    NAME = 0x2
-    BATTERY = 0x10
-    INFO = 0x14
-    FIRMWARE = 0x16
-    COMMAND = 0x18
+class Myo(Observable):
+    class Event(str, Enum):
+        EMG = 'emg'
+        EMG_FILT = 'emg_filt'
+        IMU = 'imu'
+        TAP = 'tap'
+        SYNC = 'sync'
+        POSE = 'pose'
+        LOCK = 'lock'
 
+    _events_ = Event
 
-class _NotifHandle(IntEnum):
-    IMU = 0x1b
-    MOTION = 0x1e
-    CLASSIFIER = 0x22
-    EMG_FILT = 0x26
-    EMG0 = 0x2a
-    EMG1 = 0x2d
-    EMG2 = 0x30
-    EMG3 = 0x33
+    class _Handle:
+        NAME = '00002a00-0000-1000-8000-00805f9b34fb'  # Workaround for BlueZ backend
+        BATTERY = 0x10
+        INFO = 0x14
+        FIRMWARE = 0x16
+        COMMAND = 0x18
 
+    class _NotifHandle(IntEnum):
+        IMU = 0x1b
+        MOTION = 0x1e
+        CLASSIFIER = 0x22
+        EMG_FILT = 0x26
+        EMG0 = 0x2a
+        EMG1 = 0x2d
+        EMG2 = 0x30
+        EMG3 = 0x33
 
-class Event(str, Enum):
-    EMG = 'emg'
-    EMG_FILT = 'emg_filt'
-    IMU = 'imu'
-    TAP = 'tap'
-    SYNC = 'sync'
-    POSE = 'pose'
-    LOCK = 'lock'
-    BATTERY = 'battery'
-
-
-class Myo(Dispatcher):
     def __init__(self, address: str, **kwargs) -> None:
-        super().__init__(list(Event))
         self._device = BleakClient(address, **kwargs)
 
         self._serial_number = None
@@ -213,9 +210,10 @@ class Myo(Dispatcher):
 
     async def connect(self) -> None:
         await self._device.connect()
+        # Eagerly load read-only values
         serial_number, unlock_pose, active_classifier_type, active_classifier_index, has_custom_classifier, stream_indicating, sku = struct.unpack(
-            '<6sH5B7x', await self._device.read_gatt_char(_Handle.INFO))
-        major, minor, patch, hardware_rev = struct.unpack('<4H', await self._device.read_gatt_char(_Handle.FIRMWARE))
+            '<6sH5B7x', await self._device.read_gatt_char(self._Handle.INFO))
+        major, minor, patch, hardware_rev = struct.unpack('<4H', await self._device.read_gatt_char(self._Handle.FIRMWARE))
         self._serial_number = serial_number
         self._unlock_pose = Pose(unlock_pose)
         self._active_classifier_type = ClassifierModelType(active_classifier_type)
@@ -225,7 +223,7 @@ class Myo(Dispatcher):
         self._sku = SKU(sku)
         self._firmware_version = FirmwareVersion(major, minor, patch, HardwareRev(hardware_rev))
 
-        for handle in _NotifHandle:
+        for handle in self._NotifHandle:
             await self._device.start_notify(handle, self._on_notification)
 
     async def disconnect(self) -> None:
@@ -234,22 +232,12 @@ class Myo(Dispatcher):
     @async_property
     async def name(self) -> str:
         """Myo device name."""
-        return (await self._device.read_gatt_char(_Handle.NAME)).decode()
-
-    # @name.setter
-    # def name(self, value: str) -> None:
-    #     self._device.write_gatt_char(_Handle.NAME, value.encode())
+        return (await self._device.read_gatt_char(self._Handle.NAME)).decode()
 
     @async_property
     async def battery(self) -> int:
         """Current battery level information."""
-        return ord(await self._device.read_gatt_char(_Handle.BATTERY))
-
-    # async def subscribe_battery(self) -> None:
-    #     await self._device.start_notify(_Handle.BATTERY)
-    #
-    # async def unsubscribe_battery(self) -> None:
-    #     await self._device.stop_notify(_Handle.BATTERY)
+        return ord(await self._device.read_gatt_char(self._Handle.BATTERY))
 
     @property
     def serial_number(self) -> bytes:
@@ -359,99 +347,44 @@ class Myo(Dispatcher):
         """Unlock Myo command. Can also be used to force Myo to re-lock."""
         await self._send_command(struct.pack('<3B', 10, 1, UnlockType(unlock_type)))
 
-    # TODO document default arg!
     async def user_action(self, action_type: Union[UserActionType, int] = UserActionType.SINGLE) -> None:
-        """User action command."""
+        """User action command. TODO document default arg!"""
         await self._send_command(struct.pack('<3B', 11, 1, UserActionType(action_type)))
 
-    async def _send_command(self, command):
-        await self._device.write_gatt_char(_Handle.COMMAND, command)
+    async def _send_command(self, command: bytes):
+        await self._device.write_gatt_char(self._Handle.COMMAND, command)
 
     def _on_notification(self, handle: int, value: bytearray):
-        if _NotifHandle.EMG0 <= handle <= _NotifHandle.EMG3:
+        if self._NotifHandle.EMG0 <= handle <= self._NotifHandle.EMG3:
             emg = struct.unpack('<16b', value)
-            self.notify(Event.EMG, (emg[:8], emg[8:]))
-        elif handle == _NotifHandle.EMG_FILT:
+            self.notify(self.Event.EMG, (emg[:8], emg[8:]))
+        elif handle == self._NotifHandle.EMG_FILT:
             emg_filt = struct.unpack('<8H', value[:16])  # Ignoring last byte
-            self.notify(Event.EMG_FILT, emg_filt)
-        elif handle == _NotifHandle.IMU:
+            self.notify(self.Event.EMG_FILT, emg_filt)
+        elif handle == self._NotifHandle.IMU:
             imu_data = struct.unpack('<10h', value)
             quat = tuple(x / 16384 for x in imu_data[:4])
             acc = tuple(x / 2048 for x in imu_data[4:7])
             gyro = tuple(x / 16 for x in imu_data[7:10])
-            self.notify(Event.IMU, quat, acc, gyro)
-        elif handle == _NotifHandle.MOTION:
+            self.notify(self.Event.IMU, quat, acc, gyro)
+        elif handle == self._NotifHandle.MOTION:
             event_type, event_data = struct.unpack('<B2s', value)
             if event_type == MotionEventType.TAP:
                 tap_direction, tap_count = struct.unpack('<2B', event_data)
-                self.notify(Event.TAP, tap_direction, tap_count)
-        elif handle == _NotifHandle.CLASSIFIER:
+                self.notify(self.Event.TAP, tap_direction, tap_count)
+        elif handle == self._NotifHandle.CLASSIFIER:
             event_type, event_data = struct.unpack('<B2s3x', value)
             if event_type == ClassifierEventType.ARM_SYNCED:
                 arm, x_direction = struct.unpack('<2B', event_data)
-                self.notify(Event.SYNC, False, Arm(arm), XDirection(x_direction))
+                self.notify(self.Event.SYNC, False, Arm(arm), XDirection(x_direction))
             elif event_type == ClassifierEventType.ARM_UNSYNCED:
-                self.notify(Event.SYNC, False, Arm.UNKNOWN, XDirection.UNKNOWN)
+                self.notify(self.Event.SYNC, False, Arm.UNKNOWN, XDirection.UNKNOWN)
             elif event_type == ClassifierEventType.POSE:
                 pose, = struct.unpack('<H', event_data)
-                self.notify(Event.POSE, Pose(pose))
+                self.notify(self.Event.POSE, Pose(pose))
             elif event_type == ClassifierEventType.UNLOCKED:
-                self.notify(Event.LOCK, False)
+                self.notify(self.Event.LOCK, False)
             elif event_type == ClassifierEventType.LOCKED:
-                self.notify(Event.LOCK, True)
+                self.notify(self.Event.LOCK, True)
             elif event_type == ClassifierEventType.SYNC_FAILED:
-                self.notify(Event.SYNC, True, Arm.UNKNOWN, XDirection.UNKNOWN)
-        elif handle == _NotifHandle.BATTERY:
-            self.notify(Event.BATTERY, ord(value))
-
-
-EMGPacket = Tuple[int, int, int, int, int, int, int, int]
-
-
-# class MyoListener:
-#     def on_emg(self, device: Myo, emg: Tuple[EMGPacket, EMGPacket]) -> None:
-#         pass
-#
-#     def on_emg_filt(self, device: Myo, emg: EMGPacket) -> None:
-#         pass
-#
-#     def on_imu(self, device: Myo,
-#                quat: Tuple[float, float, float, float],
-#                acc: Tuple[float, float, float],
-#                gyro: Tuple[float, float, float]) -> None:
-#         pass
-#
-#     def on_tap(self, device: Myo, tap_direction: int, tap_count: int) -> None:
-#         pass
-#
-#     def on_sync(self, device: Myo, failed: bool, arm: Arm, x_direction: XDirection) -> None:
-#         pass
-#
-#     def on_pose(self, device: Myo, pose: Pose) -> None:
-#         pass
-#
-#     def on_lock(self, device: Myo, locked: bool) -> None:
-#         pass
-#
-#     def on_battery(self, device: Myo, battery: int) -> None:
-#         pass
-
-    # def on_motion(self, device: Myo, event_type: MotionEventType, event_data: bytes) -> None:
-    #     if event_type == MotionEventType.TAP:
-    #         self.on_tap(device, *struct.unpack('<2B', event_data))
-    #
-    # def on_classifier(self, device: Myo, event_type: ClassifierEventType, event_data: bytes) -> None:
-    #     if event_type == ClassifierEventType.ARM_SYNCED:
-    #         arm, x_direction = struct.unpack('<2B', event_data)
-    #         self.on_sync(device, False, Arm(arm), XDirection(x_direction))
-    #     elif event_type == ClassifierEventType.ARM_UNSYNCED:
-    #         self.on_sync(device, False, Arm.UNKNOWN, XDirection.UNKNOWN)
-    #     elif event_type == ClassifierEventType.POSE:
-    #         pose, = struct.unpack('<H', event_data)
-    #         self.on_pose(device, Pose(pose))
-    #     elif event_type == ClassifierEventType.UNLOCKED:
-    #         self.on_lock(device, False)
-    #     elif event_type == ClassifierEventType.LOCKED:
-    #         self.on_lock(device, True)
-    #     elif event_type == ClassifierEventType.SYNC_FAILED:
-    #         self.on_sync(device, True, Arm.UNKNOWN, XDirection.UNKNOWN)
+                self.notify(self.Event.SYNC, True, Arm.UNKNOWN, XDirection.UNKNOWN)

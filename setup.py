@@ -6,7 +6,7 @@ long_description = (here / 'README.md').read_text(encoding='utf-8')
 
 setup(
     name='pymyo',
-    version='1.0.0b1',
+    version='1.0.0b2',
     description='Pythonic API to configure or retrieve data from a Thalmic Labs Myo armband through BLE',
     long_description=long_description,
     long_description_content_type="text/markdown",

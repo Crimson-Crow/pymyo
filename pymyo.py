@@ -2,7 +2,7 @@ import struct
 from enum import IntEnum, Enum
 from typing import NamedTuple, Tuple, Union
 
-from bleak import BleakClient
+from bleak import BleakClient, BleakGATTCharacteristic
 from async_property import async_property
 from pyobservable import Observable
 
@@ -354,7 +354,9 @@ class Myo(Observable):
     async def _send_command(self, command: bytes):
         await self._device.write_gatt_char(self._Handle.COMMAND, command)
 
-    def _on_notification(self, handle: int, value: bytearray):
+    def _on_notification(self, characteristic: BleakGATTCharacteristic, value: bytearray):
+        handle = characteristic.handle
+
         if self._NotifHandle.EMG0 <= handle <= self._NotifHandle.EMG3:
             emg = struct.unpack('<16b', value)
             self.notify(self.Event.EMG, (emg[:8], emg[8:]))

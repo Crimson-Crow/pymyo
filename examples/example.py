@@ -1,8 +1,7 @@
 import asyncio
 from pymyo import Myo, SleepMode, EmgMode, ImuMode, ClassifierMode
-import time
 
-MYO_ADDRESS = 'CC:B3:25:0D:5B:C3'
+MYO_ADDRESS = 'D7:91:D9:1C:C3:EB'
 
 
 async def main():

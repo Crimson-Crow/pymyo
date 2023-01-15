@@ -1,139 +1,196 @@
 import struct
-from enum import IntEnum, Enum
-from typing import NamedTuple, Tuple, Union
+import sys
+from collections.abc import Callable
+from enum import IntEnum, Enum, auto
+from typing import NamedTuple, Optional
 
-from bleak import BleakClient, BleakGATTCharacteristic
-from async_property import async_property
-from pyobservable import Observable
+from async_property import async_property, async_cached_property
+from bleak import BleakClient
+
+if sys.version_info[:2] < (3, 11):
+    from typing_extensions import Self
+else:
+    from typing import Self
 
 
 class Pose(IntEnum):
     """Supported poses."""
+
     REST = 0x00
     FIST = 0x01
     WAVE_IN = 0x02
     WAVE_OUT = 0x03
     FINGERS_SPREAD = 0x04
     DOUBLE_TAP = 0x05
-    UNKNOWN = 0xff
+    UNKNOWN = 0xFF
 
 
 class SKU(IntEnum):
-    """Known Myo SKUs."""
+    """Known Myo SKUs.
+
+    Attributes:
+        UNKNOWN: Unknown SKU (default value for old firmwares).
+        BLACK_MYO: Black Myo.
+        WHITE_MYO: White Myo.
+    """
+
     UNKNOWN = 0
-    """Unknown SKU (default value for old firmwares)"""
     BLACK_MYO = 1
-    """Black Myo"""
     WHITE_MYO = 2
-    """White Myo"""
 
 
 class HardwareRev(IntEnum):
-    """Known Myo hardware revisions."""
+    """Known Myo hardware revisions.
+
+    Attributes:
+        UNKNOWN: Unknown hardware revision.
+        REV_C: Myo Alpha (REV-C) hardware.
+        REV_D: Myo (REV-D) hardware.
+    """
+
     UNKNOWN = 0
-    """Unknown hardware revision."""
     REV_C = 1
-    """Myo Alpha (REV-C) hardware."""
     REV_D = 2
-    """Myo (REV-D) hardware."""
 
 
 class FirmwareVersion(NamedTuple):
-    """Version information for the Myo firmware."""
+    """Version information for the Myo firmware.
+
+    Attributes:
+        major: Major version.
+        minor: Minor version. It is incremented for changes in this interface.
+        patch: Patch version. It is incremented for firmware changes that do not introduce changes in this interface.
+        hardware_rev: Myo hardware revision.
+    """
+
     major: int
     minor: int
-    """Minor version is incremented for changes in this interface."""
     patch: int
-    """Patch version is incremented for firmware changes that do not introduce changes in this interface."""
     hardware_rev: HardwareRev
-    """Myo hardware revision. See `HardwareRev`."""
 
 
 class EmgMode(IntEnum):
-    """EMG modes."""
+    """EMG modes.
+
+    Attributes:
+        NONE: Do not send EMG data.
+        SECRET: Undocumented mode. Send unitless positive values correlated with muscle 'activation'.
+        EMG: Send filtered EMG data.
+        EMG_RAW: Send raw (unfiltered) EMG data.
+    """
+
     NONE = 0x00
-    """Do not send EMG data."""
-    FILT = 0x01
-    """TODO"""  # TODO
+    SECRET = 0x01  # TODO check name online (ctrl+f secret)
     EMG = 0x02
-    """Send filtered EMG data."""
     EMG_RAW = 0x03
-    """Send raw (unfiltered) EMG data."""
 
 
 class ImuMode(IntEnum):
-    """IMU modes."""
+    """IMU modes.
+
+    Attributes:
+        NONE: Do not send IMU data or events.
+        DATA: Send IMU data streams (accelerometer, gyroscope, and orientation).
+        EVENTS: Send motion events detected by the IMU (e.g. taps).
+        ALL: Send both IMU data streams and motion events.
+        RAW: Send raw IMU data streams.
+    """
+
     NONE = 0x00
-    """Do not send IMU data or events."""
     DATA = 0x01
-    """Send IMU data streams (accelerometer, gyroscope, and orientation)."""
     EVENTS = 0x02
-    """Send motion events detected by the IMU (e.g. taps)."""
     ALL = 0x03
-    """Send both IMU data streams and motion events."""
     RAW = 0x04
-    """Send raw IMU data streams."""
 
 
 class ClassifierMode(IntEnum):
-    """Classifier modes."""
+    """Classifier modes.
+
+    Attributes:
+        DISABLED: Disable and reset the internal state of the onboard classifier.
+        ENABLED: Send classifier events (poses and arm events).
+    """
+
     DISABLED = 0x00
-    """Disable and reset the internal state of the onboard classifier."""
     ENABLED = 0x01
-    """Send classifier events (poses and arm events)."""
 
 
 class VibrationType(IntEnum):
-    """Kinds of vibrations."""
+    """Kinds of vibrations.
+
+    Attributes:
+        NONE: Do not vibrate.
+        SHORT: Vibrate for a short amount of time.
+        MEDIUM: Vibrate for a medium amount of time.
+        LONG: Vibrate for a long amount of time.
+    """
+
     NONE = 0x00
-    """Do not vibrate."""
     SHORT = 0x01
-    """Vibrate for a short amount of time."""
     MEDIUM = 0x02
-    """Vibrate for a medium amount of time."""
     LONG = 0x03
-    """Vibrate for a long amount of time."""
+
+
+VIBRATE2_STEPS = 6
 
 
 class SleepMode(IntEnum):
-    """Sleep modes."""
+    """Sleep modes.
+
+    Attributes:
+        NORMAL: Normal sleep mode; Myo will sleep after a period of inactivity.
+        NEVER_SLEEP: Never go to sleep.
+    """
+
     NORMAL = 0
-    """Normal sleep mode; Myo will sleep after a period of inactivity."""
     NEVER_SLEEP = 1
-    """Never go to sleep."""
 
 
 class UnlockType(IntEnum):
-    """Unlock types."""
+    """Unlock types.
+
+    Attributes:
+        LOCK: Re-lock immediately.
+        TIMED: Unlock now and re-lock after a fixed timeout.
+        HOLD: Unlock now and remain unlocked until a lock command is received.
+    """
+
     LOCK = 0x00
-    """Re-lock immediately."""
     TIMED = 0x01
-    """Unlock now and re-lock after a fixed timeout."""
     HOLD = 0x02
-    """Unlock now and remain unlocked until a lock command is received."""
 
 
 class UserActionType(IntEnum):
-    """User action types."""
+    """User action types.
+
+    Attributes:
+        SINGLE: User did a single, discrete action, such as pausing a video.
+    """
+
     SINGLE = 0
-    """User did a single, discrete action, such as pausing a video."""
 
 
 class ClassifierModelType(IntEnum):
-    """Classifier model types."""
+    """Classifier model types.
+
+    Attributes:
+        BUILTIN: Model built into the classifier package.
+        CUSTOM: Model based on personalized user data.
+    """
+
     BUILTIN = 0
-    """Model built into the classifier package."""
     CUSTOM = 1
-    """Model based on personalized user data."""
 
 
 class MotionEventType(IntEnum):
     """Types of motion events."""
+
     TAP = 0
 
 
 class ClassifierEventType(IntEnum):
     """Types of classifier events."""
+
     ARM_SYNCED = 0x01
     ARM_UNSYNCED = 0x02
     POSE = 0x03
@@ -144,249 +201,339 @@ class ClassifierEventType(IntEnum):
 
 class Arm(IntEnum):
     """Enumeration identifying a right arm or left arm."""
+
     RIGHT = 0x01
     LEFT = 0x02
-    UNKNOWN = 0xff
+    UNKNOWN = 0xFF
 
 
 class XDirection(IntEnum):
     """Possible directions for Myo's +x axis relative to a user's arm."""
+
     WRIST = 0x01
     ELBOW = 0x02
-    UNKNOWN = 0xff
+    UNKNOWN = 0xFF
 
 
-class Myo(Observable):
-    class Event(str, Enum):
-        EMG = 'emg'
-        EMG_FILT = 'emg_filt'
-        IMU = 'imu'
-        TAP = 'tap'
-        SYNC = 'sync'
-        POSE = 'pose'
-        LOCK = 'lock'
+class SyncResult(IntEnum):
+    """Possible outcomes when the user attempts a sync gesture."""
 
-    _events_ = Event
+    FAILED_TOO_HARD = 0x01
 
-    class _Handle:
-        NAME = '00002a00-0000-1000-8000-00805f9b34fb'  # Workaround for BlueZ backend
-        BATTERY = 0x10
-        INFO = 0x14
-        FIRMWARE = 0x16
-        COMMAND = 0x18
 
-    class _NotifHandle(IntEnum):
-        IMU = 0x1b
-        MOTION = 0x1e
-        CLASSIFIER = 0x22
-        EMG_FILT = 0x26
-        EMG0 = 0x2a
-        EMG1 = 0x2d
-        EMG2 = 0x30
-        EMG3 = 0x33
+class FirmwareInfo(NamedTuple):
+    """Various parameters that may affect the behaviour of this Myo armband.
 
-    def __init__(self, address: str, **kwargs) -> None:
-        self._device = BleakClient(address, **kwargs)
+    Attributes:
+        serial_number: Unique serial number of this Myo.
+        unlock_pose: Pose that should be interpreted as the unlock pose.
+        active_classifier_type: Whether Myo is currently using a built-in or a custom classifier.
+        active_classifier_index: Index of the classifier that is currently active.
+        has_custom_classifier: Whether Myo contains a valid custom classifier.
+        stream_indicating: Set if the Myo uses BLE indicates to stream data, for reliable capture.
+        sku: SKU value of the device.
+    """
 
-        self._serial_number = None
-        self._unlock_pose = None
-        self._active_classifier_type = None
-        self._active_classifier_index = None
-        self._has_custom_classifier = None
-        self._stream_indicating = None
-        self._sku = None
-        self._firmware_version = None
+    serial_number: bytes
+    unlock_pose: Pose
+    active_classifier_type: ClassifierModelType
+    active_classifier_index: int
+    has_custom_classifier: bool
+    stream_indicating: bool
+    sku: SKU
+
+
+_STANDARD_UUID_FMT = "0000{:04x}-0000-1000-8000-00805f9b34fb"
+_MYO_UUID_FMT = "d506{:04x}-a904-deb9-4748-2c7f4a124842"
+
+
+class _BTChar(str, Enum):
+    NAME = _STANDARD_UUID_FMT.format(0x2A00)
+    BATTERY = _STANDARD_UUID_FMT.format(0x2A19)
+    INFO = _MYO_UUID_FMT.format(0x0101)
+    FIRMWARE = _MYO_UUID_FMT.format(0x0201)
+    COMMAND = _MYO_UUID_FMT.format(0x0401)
+    IMU = _MYO_UUID_FMT.format(0x0402)
+    MOTION = _MYO_UUID_FMT.format(0x0502)
+    CLASSIFIER = _MYO_UUID_FMT.format(0x0103)
+    EMG_SECRET = _MYO_UUID_FMT.format(0x0104)
+    EMG0 = _MYO_UUID_FMT.format(0x0105)
+    EMG1 = _MYO_UUID_FMT.format(0x0205)
+    EMG2 = _MYO_UUID_FMT.format(0x0305)
+    EMG3 = _MYO_UUID_FMT.format(0x0405)
+
+
+class Event(Enum):  # TODO docstrings
+    EMG = auto()
+    EMG_SECRET = auto()
+    IMU = auto()
+    TAP = auto()
+    SYNC = auto()
+    POSE = auto()
+    LOCK = auto()
+
+
+class Myo:
+    """Client used to connect and interact with a Myo armband device.
+
+    Can be used as an asynchronous context manager in order to automatically manage the connection and disconnection.
+    """
+
+    def __init__(self, *args, **kwargs) -> None:
+        self._device = BleakClient(*args, **kwargs)
         self._emg_mode = EmgMode.NONE
         self._imu_mode = ImuMode.NONE
         self._classifier_mode = ClassifierMode.DISABLED
         self._sleep_mode = SleepMode.NORMAL
+        self._observers: dict[Event, list[Callable]] = {event: [] for event in Event}
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         await self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb):
+    async def __aexit__(self, exc_type, exc, tb) -> None:
         await self.disconnect()
 
     async def connect(self) -> None:
+        """Connect to the specified Myo device."""
         await self._device.connect()
-        # Eagerly load read-only values
-        serial_number, unlock_pose, active_classifier_type, active_classifier_index, has_custom_classifier, stream_indicating, sku = struct.unpack(
-            '<6sH5B7x', await self._device.read_gatt_char(self._Handle.INFO))
-        major, minor, patch, hardware_rev = struct.unpack('<4H', await self._device.read_gatt_char(self._Handle.FIRMWARE))
-        self._serial_number = serial_number
-        self._unlock_pose = Pose(unlock_pose)
-        self._active_classifier_type = ClassifierModelType(active_classifier_type)
-        self._active_classifier_index = active_classifier_index
-        self._has_custom_classifier = bool(has_custom_classifier)
-        self._stream_indicating = bool(stream_indicating)
-        self._sku = SKU(sku)
-        self._firmware_version = FirmwareVersion(major, minor, patch, HardwareRev(hardware_rev))
-
-        for handle in self._NotifHandle:
-            await self._device.start_notify(handle, self._on_notification)
+        # Subscribe to all notifications
+        await self._device.start_notify(_BTChar.IMU.value, self._on_imu)
+        await self._device.start_notify(_BTChar.MOTION.value, self._on_motion)
+        await self._device.start_notify(_BTChar.CLASSIFIER.value, self._on_classifier)
+        await self._device.start_notify(_BTChar.EMG_SECRET.value, self._on_emg_secret)
+        for c in (_BTChar.EMG0, _BTChar.EMG1, _BTChar.EMG2, _BTChar.EMG3):
+            await self._device.start_notify(c.value, self._on_emg)
 
     async def disconnect(self) -> None:
+        """Disconnect from the specified Myo device."""
         await self._device.disconnect()
+
+    @property
+    def is_connected(self) -> bool:
+        """Connection status between this client and the Myo armband."""
+        return self._device.is_connected
 
     @async_property
     async def name(self) -> str:
         """Myo device name."""
-        return (await self._device.read_gatt_char(self._Handle.NAME)).decode()
+        return (await self._device.read_gatt_char(_BTChar.NAME.value)).decode()
 
     @async_property
     async def battery(self) -> int:
         """Current battery level information."""
-        return ord(await self._device.read_gatt_char(self._Handle.BATTERY))
+        return ord(await self._device.read_gatt_char(_BTChar.BATTERY.value))
 
-    @property
-    def serial_number(self) -> bytes:
-        """Unique serial number of this Myo."""
-        return self._serial_number
+    @async_cached_property
+    async def info(self) -> FirmwareInfo:
+        """Various information about supported features of the Myo firmware."""
+        sn, up, act, aci, hcs, si, sku = struct.unpack(
+            "<6sH5B7x", await self._device.read_gatt_char(_BTChar.INFO.value)
+        )
+        return FirmwareInfo(
+            sn, Pose(up), ClassifierModelType(act), aci, bool(hcs), bool(si), SKU(sku)
+        )
 
-    @property
-    def unlock_pose(self) -> Pose:
-        """Pose that should be interpreted as the unlock pose. See `Pose`."""
-        return self._unlock_pose
-
-    @property
-    def active_classifier_type(self) -> ClassifierModelType:
-        """Whether Myo is currently using a built-in or a custom classifier. See `ClassifierModelType`."""
-        return self._active_classifier_type
-
-    @property
-    def active_classifier_index(self) -> int:
-        """Index of the classifier that is currently active."""
-        return self._active_classifier_index
-
-    @property
-    def has_custom_classifier(self) -> bool:
-        """Whether Myo contains a valid custom classifier."""
-        return self._has_custom_classifier
-
-    @property
-    def stream_indicating(self) -> bool:
-        """Set if the Myo uses BLE indicates to stream data, for reliable capture."""
-        return self._stream_indicating
-
-    @property
-    def sku(self) -> SKU:
-        """SKU value of the device. See `SKU`."""
-        return self._sku
-
-    @property
-    def firmware_version(self) -> FirmwareVersion:
-        """Version information for the Myo firmware. See `FirmwareVersion`."""
-        return self._firmware_version
+    @async_cached_property
+    async def firmware_version(self) -> FirmwareVersion:
+        """Version information for the Myo firmware."""
+        *version, hardware_rev = struct.unpack(
+            "<4H", await self._device.read_gatt_char(_BTChar.FIRMWARE.value)
+        )
+        return FirmwareVersion(*version, HardwareRev(hardware_rev))
 
     @property
     def emg_mode(self) -> EmgMode:
-        """Get or set EMG mode. See `EmgMode`."""
+        """Get the current EMG mode. Use `set_mode` to set a new mode."""
         return self._emg_mode
 
     @property
     def imu_mode(self) -> ImuMode:
-        """Get or set IMU mode. See `ImuMode`."""
+        """Get the current IMU mode. Use `set_mode` to set a new mode."""
         return self._imu_mode
 
     @property
     def classifier_mode(self) -> ClassifierMode:
-        """Get or set classifier mode. See `ClassifierMode`."""
+        """Get the current classifier mode. Use `set_mode` to set a new mode."""
         return self._classifier_mode
 
-    async def set_mode(self, emg_mode: Union[EmgMode, int] = None,
-                       imu_mode: Union[ImuMode, int] = None,
-                       classifier_mode: Union[ClassifierMode, int] = None):
-        emg_mode = EmgMode(emg_mode or self._emg_mode)
-        imu_mode = ImuMode(imu_mode or self._imu_mode)
-        classifier_mode = ClassifierMode(classifier_mode or self._classifier_mode)
-        await self._send_command(struct.pack('<5B', 1, 3, emg_mode, imu_mode, classifier_mode))
+    async def set_mode(
+        self,
+        emg_mode: Optional[EmgMode] = None,
+        imu_mode: Optional[ImuMode] = None,
+        classifier_mode: Optional[ClassifierMode] = None,
+    ) -> None:
+        """Set EMG, IMU and classifier modes.
+
+        Missing optional values will use the current value for that mode."""
+        if emg_mode is None:
+            emg_mode = self._emg_mode
+        if imu_mode is None:
+            imu_mode = self._imu_mode
+        if classifier_mode is None:
+            classifier_mode = self._classifier_mode
+        await self._device.write_gatt_char(
+            _BTChar.COMMAND.value,
+            struct.pack("<5B", 1, 3, emg_mode, imu_mode, classifier_mode),
+        )
         self._emg_mode = emg_mode
         self._imu_mode = imu_mode
         self._classifier_mode = classifier_mode
 
     @property
     def sleep_mode(self) -> SleepMode:
-        """Get or set sleep mode. See `SleepMode`."""
+        """Get the current sleep mode. Use `set_sleep_mode` to set a new mode."""
         return self._sleep_mode
 
-    async def set_sleep_mode(self, value: Union[SleepMode, int]) -> None:
-        value = SleepMode(value)
-        if self._sleep_mode != value:
-            await self._send_command(struct.pack('<3B', 9, 1, value))
-            self._sleep_mode = value
+    async def set_sleep_mode(self, sleep_mode: SleepMode) -> None:
+        """Set sleep mode."""
+        if sleep_mode == self._sleep_mode:
+            return
+        await self._device.write_gatt_char(
+            _BTChar.COMMAND.value, struct.pack("<3B", 9, 1, sleep_mode)
+        )
+        self._sleep_mode = sleep_mode
 
-    async def vibrate(self, vibration_type: Union[VibrationType, int]) -> None:
-        """Vibration command. See `VibrationType`."""
-        await self._send_command(struct.pack('<3B', 3, 1, VibrationType(vibration_type)))
+    async def vibrate(self, vibration_type: VibrationType) -> None:
+        """Vibration command."""
+        await self._device.write_gatt_char(
+            _BTChar.COMMAND.value, struct.pack("<3B", 3, 1, vibration_type)
+        )
 
     async def deep_sleep(self) -> None:
-        """Deep sleep command. If you send this command, the Myo armband will go into a deep sleep with everything
+        """Put Myo into deep sleep.
+
+        If you send this command, the Myo armband will go into a deep sleep with everything
         basically off. It can stay in this state for months (indeed, this is the state the Myo armband ships in),
         but the only way to wake it back up is by plugging it in via USB. (source:
         https://developerblog.myo.com/myo-bluetooth-spec-released/)
 
-        Note
-        ----
-        Don't send this command lightly, a user may not know what happened or have the knowledge/ability to recover.
+        Note:
+            Don't send this command lightly: a user may not know what happened or have the knowledge/ability to recover.
         """
-        await self._send_command(b'\x04\x00')
+        await self._device.write_gatt_char(_BTChar.COMMAND.value, b"\x04\x00")
 
-    async def set_led_colors(self, logo_rgb: Tuple[int, int, int], line_rgb: Tuple[int, int, int]) -> None:
-        """TODO"""
-        await self._send_command(struct.pack('<8B', 6, 6, *logo_rgb, *line_rgb))
+    async def set_led_colors(
+        self, logo_rgb: tuple[int, int, int], status_rgb: tuple[int, int, int]
+    ) -> None:
+        """Set the colors for the logo and the status LEDs.
 
-    async def vibrate2(self, steps: Tuple[
-        Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int], Tuple[int, int]]) -> None:
-        """Extended vibration command. TODO add better description."""
-        if len(steps) != 6:
-            raise ValueError(f'Expected 6 vibration steps (got {len(steps)})')
-        await self._send_command(struct.pack('<2B' + 6 * 'HB', 7, 20, *sum(steps, ())))
+        Undocumented in the official API.
 
-    async def unlock(self, unlock_type: Union[UnlockType, int]) -> None:
-        """Unlock Myo command. Can also be used to force Myo to re-lock."""
-        await self._send_command(struct.pack('<3B', 10, 1, UnlockType(unlock_type)))
+        Args:
+            logo_rgb: RGB values for the logo LED
+            status_rgb: RGB values for the status LED bar
+        """
+        await self._device.write_gatt_char(
+            _BTChar.COMMAND.value,
+            struct.pack("<8B", 6, 6, *logo_rgb, *status_rgb),
+        )
 
-    async def user_action(self, action_type: Union[UserActionType, int] = UserActionType.SINGLE) -> None:
-        """User action command. TODO document default arg!"""
-        await self._send_command(struct.pack('<3B', 11, 1, UserActionType(action_type)))
+    async def vibrate2(
+        self,
+        steps: tuple[
+            tuple[int, int],
+            tuple[int, int],
+            tuple[int, int],
+            tuple[int, int],
+            tuple[int, int],
+            tuple[int, int],
+        ],
+    ) -> None:
+        """Extended vibrate.
 
-    async def _send_command(self, command: bytes):
-        await self._device.write_gatt_char(self._Handle.COMMAND, command)
+        Args:
+            steps: A tuple with VIBRATE2_STEPS elements.
+                Each element must be a tuple with two values.
+                First value is the duration (in ms) of the vibration.
+                Second value is the strength of vibration
+                (0 - motor off, 255 - full speed).
+        """
+        if (nb_steps := len(steps)) != VIBRATE2_STEPS:
+            raise ValueError(
+                f"Expected {VIBRATE2_STEPS} vibration steps (got {nb_steps})"
+            )
+        await self._device.write_gatt_char(
+            _BTChar.COMMAND.value,
+            struct.pack("<2B" + VIBRATE2_STEPS * "HB", 7, 20, *sum(steps, ())),
+        )
 
-    def _on_notification(self, characteristic: BleakGATTCharacteristic, value: bytearray):
-        handle = characteristic.handle
+    async def unlock(self, unlock_type: UnlockType) -> None:
+        """Unlock Myo command.
 
-        if self._NotifHandle.EMG0 <= handle <= self._NotifHandle.EMG3:
-            emg = struct.unpack('<16b', value)
-            self.notify(self.Event.EMG, (emg[:8], emg[8:]))
-        elif handle == self._NotifHandle.EMG_FILT:
-            emg_filt = struct.unpack('<8H', value[:16])  # Ignoring last byte
-            self.notify(self.Event.EMG_FILT, emg_filt)
-        elif handle == self._NotifHandle.IMU:
-            imu_data = struct.unpack('<10h', value)
-            quat = tuple(x / 16384 for x in imu_data[:4])
-            acc = tuple(x / 2048 for x in imu_data[4:7])
-            gyro = tuple(x / 16 for x in imu_data[7:10])
-            self.notify(self.Event.IMU, quat, acc, gyro)
-        elif handle == self._NotifHandle.MOTION:
-            event_type, event_data = struct.unpack('<B2s', value)
-            if event_type == MotionEventType.TAP:
-                tap_direction, tap_count = struct.unpack('<2B', event_data)
-                self.notify(self.Event.TAP, tap_direction, tap_count)
-        elif handle == self._NotifHandle.CLASSIFIER:
-            event_type, event_data = struct.unpack('<B2s3x', value)
-            if event_type == ClassifierEventType.ARM_SYNCED:
-                arm, x_direction = struct.unpack('<2B', event_data)
-                self.notify(self.Event.SYNC, False, Arm(arm), XDirection(x_direction))
-            elif event_type == ClassifierEventType.ARM_UNSYNCED:
-                self.notify(self.Event.SYNC, False, Arm.UNKNOWN, XDirection.UNKNOWN)
-            elif event_type == ClassifierEventType.POSE:
-                pose, = struct.unpack('<H', event_data)
-                self.notify(self.Event.POSE, Pose(pose))
-            elif event_type == ClassifierEventType.UNLOCKED:
-                self.notify(self.Event.LOCK, False)
-            elif event_type == ClassifierEventType.LOCKED:
-                self.notify(self.Event.LOCK, True)
-            elif event_type == ClassifierEventType.SYNC_FAILED:
-                self.notify(self.Event.SYNC, True, Arm.UNKNOWN, XDirection.UNKNOWN)
+        Can also be used to force Myo to re-lock."""
+        await self._device.write_gatt_char(
+            _BTChar.COMMAND.value, struct.pack("<3B", 10, 1, unlock_type)
+        )
+
+    async def user_action(
+        self, action_type: UserActionType = UserActionType.SINGLE
+    ) -> None:
+        """User action command.
+
+        Notifies user that an action has been recognized / confirmed."""
+        await self._device.write_gatt_char(
+            _BTChar.COMMAND.value, struct.pack("<3B", 11, 1, action_type)
+        )
+
+    # Notification callbacks
+    def _on_emg(self, _, value: bytearray) -> None:
+        emg = struct.unpack("<16b", value)
+        self._notify(Event.EMG, (emg[:8], emg[8:]))
+
+    def _on_emg_secret(self, _, value: bytearray) -> None:
+        self._notify(Event.EMG_SECRET, struct.unpack("<8Hx", value))
+
+    def _on_imu(self, _, value: bytearray) -> None:
+        imu_data = struct.unpack("<10h", value)
+        orientation = tuple(x / 16384 for x in imu_data[:4])
+        accelerometer = tuple(x / 2048 for x in imu_data[4:7])
+        gyroscope = tuple(x / 16 for x in imu_data[7:10])
+        self._notify(Event.IMU, orientation, accelerometer, gyroscope)
+
+    def _on_motion(self, _, value: bytearray) -> None:
+        # The only MotionEventType implemented in the spec is TAP.
+        event_type, *tap_data = struct.unpack("<3B", value)
+        self._notify(Event.TAP, *tap_data)
+
+    def _on_classifier(self, _, value: bytearray) -> None:
+        event_type, event_data = struct.unpack("<B2s3x", value)
+        if event_type == ClassifierEventType.ARM_SYNCED:
+            arm, x_direction = struct.unpack("<2B", event_data)
+            self._notify(Event.SYNC, None, Arm(arm), XDirection(x_direction))
+        elif event_type == ClassifierEventType.ARM_UNSYNCED:
+            self._notify(Event.SYNC, None, Arm.UNKNOWN, XDirection.UNKNOWN)
+        elif event_type == ClassifierEventType.POSE:
+            self._notify(Event.POSE, Pose(int.from_bytes(event_data, "little")))
+        elif event_type == ClassifierEventType.UNLOCKED:
+            self._notify(Event.LOCK, False)
+        elif event_type == ClassifierEventType.LOCKED:
+            self._notify(Event.LOCK, True)
+        elif event_type == ClassifierEventType.SYNC_FAILED:
+            # The only SyncResult implemented in the spec is FAILED_TOO_HARD.
+            self._notify(
+                Event.SYNC,
+                SyncResult.FAILED_TOO_HARD,
+                Arm.UNKNOWN,
+                XDirection.UNKNOWN,
+            )
+        else:
+            # Should never happen
+            raise RuntimeError(f"Invalid ClassifierEventType: {event_type}")
+
+    def _notify(self, event: Event, *args, **kwargs) -> None:
+        for observer in self._observers[event]:
+            observer(*args, **kwargs)
+
+    def bind(self, event: Event, handler=None):  # TODO typing
+        def decorator(callback):
+            if not callable(callback):
+                raise TypeError("The provided object is not callable.")
+            self._observers[event].append(callback)
+            return callback
+
+        if handler is None:
+            return decorator
+        else:
+            decorator(handler)
+            return None

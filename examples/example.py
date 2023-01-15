@@ -1,25 +1,20 @@
 import asyncio
-from pymyo import Myo, SleepMode, EmgMode, ImuMode, ClassifierMode
+from pymyo import Myo, SleepMode, EmgMode, Event
 
-MYO_ADDRESS = 'D7:91:D9:1C:C3:EB'
+MYO_ADDRESS = "D7:91:D9:1C:C3:EB"  # Put your own Myo Bluetooth address here
 
 
-async def main():
+async def main() -> None:
     async with Myo(MYO_ADDRESS) as myo:
-        print('Device name:', await myo.name)
-        print('Battery level:', await myo.battery)
-        print('Serial number:', myo.serial_number)
-        print('Firmware version:', myo.firmware_version)
-        print('Unlock pose:', myo.unlock_pose)
-        print('Active classifier type:', myo.active_classifier_type)
-        print('Active classifier index:', myo.active_classifier_index)
-        print('Stream indicating:', myo.stream_indicating)
-        print('Has custom classifier:', myo.has_custom_classifier)
-        print('SKU:', myo.sku)
+        # Access information using awaitable properties
+        print("Device name:", await myo.name)
+        print("Battery level:", await myo.battery)
+        print("Firmware version:", await myo.firmware_version)
+        print("Firmware info:", await myo.info)
 
         await myo.vibrate2(((250, 255), (250, 128), (250, 255), (0, 0), (0, 0), (0, 0)))
 
-        @myo.bind(Myo.Event.EMG)
+        @myo.bind(Event.EMG)
         def on_emg(emg):
             print(emg)
 
@@ -29,6 +24,6 @@ async def main():
         while True:
             await asyncio.sleep(1)
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     asyncio.run(main())
 

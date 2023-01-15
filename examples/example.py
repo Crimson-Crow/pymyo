@@ -22,7 +22,7 @@ async def main() -> None:
         await myo.set_mode(emg_mode=EmgMode.EMG)
 
         while True:
-            await asyncio.sleep(1)
+            await asyncio.sleep(1)  # Do stuff
 
 if __name__ == "__main__":
     asyncio.run(main())

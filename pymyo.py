@@ -74,13 +74,13 @@ class EmgMode(IntEnum):
 
     Attributes:
         NONE: Do not send EMG data.
-        SECRET: Undocumented mode. Send unitless positive values correlated with muscle 'activation'.
+        PROCESSED: Undocumented mode. Send rectified and smoothed positive values correlated with muscle 'activation'.
         EMG: Send filtered EMG data.
         EMG_RAW: Send raw (unfiltered) EMG data.
     """
 
     NONE = 0x00
-    SECRET = 0x01  # TODO check name online (ctrl+f secret)
+    PROCESSED = 0x01
     EMG = 0x02
     EMG_RAW = 0x03
 
@@ -256,7 +256,7 @@ class _BTChar(str, Enum):
     IMU = _MYO_UUID_FMT.format(0x0402)
     MOTION = _MYO_UUID_FMT.format(0x0502)
     CLASSIFIER = _MYO_UUID_FMT.format(0x0103)
-    EMG_SECRET = _MYO_UUID_FMT.format(0x0104)
+    EMG_PROCESSED = _MYO_UUID_FMT.format(0x0104)
     EMG0 = _MYO_UUID_FMT.format(0x0105)
     EMG1 = _MYO_UUID_FMT.format(0x0205)
     EMG2 = _MYO_UUID_FMT.format(0x0305)
@@ -265,7 +265,7 @@ class _BTChar(str, Enum):
 
 class Event(Enum):  # TODO docstrings
     EMG = auto()
-    EMG_SECRET = auto()
+    EMG_PROCESSED = auto()
     IMU = auto()
     TAP = auto()
     SYNC = auto()
@@ -301,7 +301,9 @@ class Myo:
         await self._device.start_notify(_BTChar.IMU.value, self._on_imu)
         await self._device.start_notify(_BTChar.MOTION.value, self._on_motion)
         await self._device.start_notify(_BTChar.CLASSIFIER.value, self._on_classifier)
-        await self._device.start_notify(_BTChar.EMG_SECRET.value, self._on_emg_secret)
+        await self._device.start_notify(
+            _BTChar.EMG_PROCESSED.value, self._on_emg_processed
+        )
         for c in (_BTChar.EMG0, _BTChar.EMG1, _BTChar.EMG2, _BTChar.EMG3):
             await self._device.start_notify(c.value, self._on_emg)
 
@@ -481,8 +483,8 @@ class Myo:
         emg = struct.unpack("<16b", value)
         self._notify(Event.EMG, (emg[:8], emg[8:]))
 
-    def _on_emg_secret(self, _, value: bytearray) -> None:
-        self._notify(Event.EMG_SECRET, struct.unpack("<8Hx", value))
+    def _on_emg_processed(self, _, value: bytearray) -> None:
+        self._notify(Event.EMG_PROCESSED, struct.unpack("<8Hx", value))
 
     def _on_imu(self, _, value: bytearray) -> None:
         imu_data = struct.unpack("<10h", value)

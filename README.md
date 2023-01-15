@@ -8,11 +8,11 @@ pymyo
 Description
 -----------
 
-`pymyo` is a platform agnostic Python module that allows you to configure or retrieve data from a Thalmic Labs Myo armband through BLE **without** the need to have the Myo SDK installed.
+`pymyo` is a platform-agnostic Python module that allows you to configure or retrieve data from a Thalmic Labs Myo armband through BLE **without** the need to have the Myo SDK installed or the need to use the original dongle.
 
 WIP
 ---
-Documentation coming soon!
+Documentation coming soon! Docstrings are provided for the time being.
 
 Issue tracker
 -------------
@@ -20,7 +20,7 @@ Issue tracker
 Please report any bugs and enhancement ideas using the [issue tracker](https://github.com/Crimson-Crow/pymyo/issues).
 
 Acknowledgments
--------
+---------------
 
 The development of this project was instigated and made possible by professor François Nougarou.
 

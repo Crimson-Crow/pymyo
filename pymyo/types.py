@@ -1,5 +1,30 @@
+"""Collection of data structures, constants and enumerations used with a Myo armband."""
+
+__all__ = [
+    "Pose",
+    "SKU",
+    "HardwareRev",
+    "FirmwareVersion",
+    "EmgMode",
+    "EmgValue",
+    "ImuMode",
+    "ClassifierMode",
+    "VibrationType",
+    "VIBRATE2_STEPS",
+    "SleepMode",
+    "UnlockType",
+    "UserActionType",
+    "ClassifierModelType",
+    "MotionEventType",
+    "ClassifierEventType",
+    "Arm",
+    "XDirection",
+    "SyncResult",
+    "FirmwareInfo",
+]
+
 from enum import IntEnum
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
 
 
 class Pose(IntEnum):
@@ -48,7 +73,8 @@ class FirmwareVersion(NamedTuple):
     Attributes:
         major: Major version.
         minor: Minor version. It is incremented for changes in this interface.
-        patch: Patch version. It is incremented for firmware changes that do not introduce changes in this interface.
+        patch: Patch version. It is incremented for firmware changes that do not
+            introduce changes in this interface.
         hardware_rev: Myo hardware revision.
     """
 
@@ -63,7 +89,8 @@ class EmgMode(IntEnum):
 
     Attributes:
         NONE: Do not send EMG data.
-        PROCESSED: Undocumented mode. Send rectified and smoothed positive values correlated with muscle 'activation'.
+        PROCESSED: Undocumented mode. Send 50 Hz rectified and smoothed positive values
+            correlated with muscle 'activation'.
         EMG: Send filtered EMG data.
         EMG_RAW: Send raw (unfiltered) EMG data.
     """
@@ -72,6 +99,9 @@ class EmgMode(IntEnum):
     PROCESSED = 0x01
     EMG = 0x02
     EMG_RAW = 0x03
+
+
+EmgValue = Tuple[int, ...]
 
 
 class ImuMode(IntEnum):
@@ -216,10 +246,12 @@ class FirmwareInfo(NamedTuple):
     Attributes:
         serial_number: Unique serial number of this Myo.
         unlock_pose: Pose that should be interpreted as the unlock pose.
-        active_classifier_type: Whether Myo is currently using a built-in or a custom classifier.
+        active_classifier_type: Whether Myo is currently using a built-in or a custom
+            classifier.
         active_classifier_index: Index of the classifier that is currently active.
         has_custom_classifier: Whether Myo contains a valid custom classifier.
-        stream_indicating: Set if the Myo uses BLE indicates to stream data, for reliable capture.
+        stream_indicating: Set if the Myo uses BLE indicates to stream data, for
+            reliable capture.
         sku: SKU value of the device.
     """
 

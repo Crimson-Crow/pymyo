@@ -28,7 +28,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3 :: Only",
   "Topic :: Scientific/Engineering :: Human Machine Interfaces",
-  "Topic :: Communications",
+  "Typing :: Typed",
 ]
 dependencies = [
   "async-property == 0.2.1",

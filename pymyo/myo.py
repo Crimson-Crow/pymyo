@@ -12,13 +12,15 @@ from typing import (
     List,
     Optional,
     Tuple,
+    Type,
     Any,
     TypeVar,
     Protocol,
     Final,
 )
+from types import TracebackType
 
-from async_property import async_cached_property, async_property  # type: ignore[import]
+from async_property import async_cached_property, async_property
 from bleak import BleakClient
 
 from pymyo.types import (
@@ -69,7 +71,7 @@ class _BTChar(str, Enum):
     EMG3 = _MYO_UUID_FMT.format(0x0405)
 
 
-_C = TypeVar("_C", bound=Callable)
+_C = TypeVar("_C", bound=Callable[..., Any])
 
 
 class Event(Generic[_C]):
@@ -145,8 +147,8 @@ class Myo:
     POSE: Final[Event[PoseCallback]]
     LOCK: Final[Event[PoseCallback]]
 
-    def __init__(self, *args, **kwargs) -> None:
-        self._device = BleakClient(*args, **kwargs)  # TODO change constructor
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # TODO change constructor
+        self._device = BleakClient(*args, **kwargs)
         self._emg_mode = EmgMode.NONE
         self._imu_mode = ImuMode.NONE
         self._classifier_mode = ClassifierMode.DISABLED
@@ -164,7 +166,12 @@ class Myo:
         await self.connect()
         return self
 
-    async def __aexit__(self, exc_type, exc, tb) -> None:
+    async def __aexit__(
+        self,
+        exc_type: Optional[Type[BaseException]],
+        exc: Optional[BaseException],
+        tb: Optional[TracebackType],
+    ) -> None:
         await self.disconnect()
 
     async def connect(self) -> None:
@@ -189,17 +196,17 @@ class Myo:
         """Connection status between this client and the Myo armband."""
         return self._device.is_connected
 
-    @async_property
+    @async_property  # type: ignore
     async def name(self) -> str:
         """Myo device name."""
         return (await self._device.read_gatt_char(_BTChar.NAME.value)).decode()
 
-    @async_property
+    @async_property  # type: ignore
     async def battery(self) -> int:
         """Current battery level information in percent."""
         return ord(await self._device.read_gatt_char(_BTChar.BATTERY.value))
 
-    @async_cached_property
+    @async_cached_property  # type: ignore
     async def info(self) -> FirmwareInfo:
         """Various information about supported features of the Myo firmware."""
         sn, up, act, aci, hcs, si, sku = struct.unpack(
@@ -216,7 +223,7 @@ class Myo:
             SKU(sku),
         )
 
-    @async_cached_property
+    @async_cached_property  # type: ignore
     async def firmware_version(self) -> FirmwareVersion:
         """Version information for the Myo firmware."""
         major, minor, patch, hardware_rev = struct.unpack(
@@ -283,8 +290,6 @@ class Myo:
 
     async def set_sleep_mode(self, sleep_mode: SleepMode) -> None:
         """Set sleep mode."""
-        if sleep_mode == self._sleep_mode:
-            return
         await self._device.write_gatt_char(
             _BTChar.COMMAND.value,
             struct.pack("<3B", 9, 1, sleep_mode),
@@ -305,7 +310,6 @@ class Myo:
         everything basically off. It can stay in this state for months (indeed, this is
         the state the Myo armband ships in), but the only way to wake it back up is by
         plugging it in via USB.
-        (source: https://developerblog.myo.com/myo-bluetooth-spec-released/)
 
         Note:
             Don't send this command lightly: a user may not know what happened or have
@@ -341,7 +345,8 @@ class Myo:
                 1st value is the duration (in ms) of the vibration.
                 2nd value is the strength of vibration (0: motor off, 255: full speed).
         """
-        if (nb_steps := len(steps)) > VIBRATE2_STEPS:
+        nb_steps = len(steps)
+        if nb_steps > VIBRATE2_STEPS:
             msg = f"Expected <={VIBRATE2_STEPS} vibration steps (got {nb_steps})"
             raise ValueError(msg)
         # Flatten and add the potentially missing steps
@@ -375,26 +380,26 @@ class Myo:
         )
 
     # Notification callbacks
-    def _on_emg(self, _, value: bytearray) -> None:
+    def _on_emg(self, _: Any, value: bytearray) -> None:
         emg = struct.unpack("<16b", value)
         self.EMG.notify((emg[:8], emg[8:]))
 
-    def _on_emg_processed(self, _, value: bytearray) -> None:
+    def _on_emg_processed(self, _: Any, value: bytearray) -> None:
         self.EMG_PROCESSED.notify(struct.unpack("<8Hx", value))
 
-    def _on_imu(self, _, value: bytearray) -> None:
+    def _on_imu(self, _: Any, value: bytearray) -> None:
         imu_data = struct.unpack("<10h", value)
         orientation = tuple(x / 16384 for x in imu_data[:4])
         accelerometer = tuple(x / 2048 for x in imu_data[4:7])
-        gyroscope = tuple(x / 16 for x in imu_data[7:10])
+        gyroscope = tuple(x / 16 for x in imu_data[7:])
         self.IMU.notify(orientation, accelerometer, gyroscope)
 
-    def _on_motion(self, _, value: bytearray) -> None:
+    def _on_motion(self, _: Any, value: bytearray) -> None:
         # The only MotionEventType implemented in the spec is TAP.
         event_type, *tap_data = struct.unpack("<3B", value)
         self.TAP.notify(*tap_data)
 
-    def _on_classifier(self, _, value: bytearray) -> None:
+    def _on_classifier(self, _: Any, value: bytearray) -> None:
         event_type, event_data = struct.unpack("<B2s", value)
         if event_type == ClassifierEventType.ARM_SYNCED:
             arm, x_direction = struct.unpack("<2B", event_data)

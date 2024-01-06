@@ -26,14 +26,15 @@ classifiers = [
   "Programming Language :: Python :: 3.9",
   "Programming Language :: Python :: 3.10",
   "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3 :: Only",
   "Topic :: Scientific/Engineering :: Human Machine Interfaces",
   "Typing :: Typed",
 ]
 dependencies = [
-  "async-property == 0.2.1",
+  "async-property >= 0.2.2",
   'typing-extensions ~= 4.4; python_version < "3.11"',
-  "bleak >= 0.20.1",
+  "bleak >= 0.21.1",
 ]
 dynamic = ["version"]
 
@@ -44,9 +45,6 @@ dynamic = ["version"]
 
 [tool.setuptools.dynamic]
 version = {attr = "pymyo.__version__"}
-
-[tool.black]
-target-version = ["py38"]
 
 [tool.ruff]
 target-version = "py38"

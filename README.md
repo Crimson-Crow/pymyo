@@ -27,4 +27,4 @@ The development of this project was instigated and made possible by professor Fr
 License
 -------
 
-`pymyo` is licensed under the terms of the [MIT License](https://opensource.org/licenses/MIT) (see [LICENSE.txt](https://github.com/Crimson-Crow/pymyo/blob/main/LICENSE.txt) for more information).
+`pymyo` is licensed under the terms of the [MIT License](https://opensource.org/licenses/MIT) (see [LICENSE.txt](https://github.com/Crimson-Crow/pymyo/blob/master/LICENSE.txt) for more information).

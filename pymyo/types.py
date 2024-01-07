@@ -1,4 +1,5 @@
 """Collection of data structures, constants and enumerations used with a Myo armband."""
+from __future__ import annotations
 
 __all__ = [
     "Pose",
@@ -21,10 +22,17 @@ __all__ = [
     "XDirection",
     "SyncResult",
     "FirmwareInfo",
+    "EMGCallback",
+    "EMGProcessedCallback",
+    "IMUCallback",
+    "LockCallback",
+    "PoseCallback",
+    "SyncCallback",
+    "TapCallback",
 ]
 
 from enum import IntEnum
-from typing import NamedTuple, Tuple
+from typing import Final, NamedTuple, Protocol, Tuple
 
 
 class Pose(IntEnum):
@@ -150,7 +158,7 @@ class VibrationType(IntEnum):
     LONG = 0x03
 
 
-VIBRATE2_STEPS = 6
+VIBRATE2_STEPS: Final = 6
 
 
 class SleepMode(IntEnum):
@@ -262,3 +270,48 @@ class FirmwareInfo(NamedTuple):
     has_custom_classifier: bool
     stream_indicating: bool
     sku: SKU
+
+
+class EMGCallback(Protocol):
+    def __call__(self, emg: tuple[EmgValue, EmgValue]) -> None:
+        ...
+
+
+class EMGProcessedCallback(Protocol):
+    def __call__(self, emg: EmgValue) -> None:
+        ...
+
+
+class IMUCallback(Protocol):
+    def __call__(
+        self,
+        orientation: tuple[float, float, float, float],
+        accelerometer: tuple[float, float, float],
+        gyroscope: tuple[float, float, float],
+    ) -> None:
+        ...
+
+
+class TapCallback(Protocol):
+    def __call__(self, direction: int, count: int) -> None:
+        ...
+
+
+class SyncCallback(Protocol):
+    def __call__(
+        self,
+        arm: Arm,
+        x_direction: XDirection,
+        failed_flag: SyncResult | None = None,
+    ) -> None:
+        ...
+
+
+class PoseCallback(Protocol):
+    def __call__(self, pose: Pose) -> None:
+        ...
+
+
+class LockCallback(Protocol):
+    def __call__(self, locked: bool) -> None:
+        ...

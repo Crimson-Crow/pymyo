@@ -1,58 +1,67 @@
 """The Myo client interface module."""
+from __future__ import annotations
 
 __all__ = ["Myo"]
 
 import itertools
 import struct
-import sys
 from enum import Enum
 from typing import (
-    Callable,
-    Generic,
-    List,
-    Optional,
-    Tuple,
-    Type,
+    TYPE_CHECKING,
     Any,
-    TypeVar,
-    Protocol,
+    Callable,
     Final,
+    Generic,
+    TypeVar,
 )
-from types import TracebackType
+
+if TYPE_CHECKING:
+    import sys
+    from types import TracebackType
+
+    if sys.version_info[:2] < (3, 11):
+        from typing_extensions import Self
+    else:
+        from typing import Self
 
 from async_property import async_cached_property, async_property
 from bleak import BleakClient
 
-from pymyo.types import (
-    EmgValue,
-    Arm,
-    XDirection,
-    SyncResult,
-    Pose,
-    EmgMode,
-    ImuMode,
-    ClassifierMode,
-    SleepMode,
-    FirmwareInfo,
-    ClassifierModelType,
+from .types import (
     SKU,
+    VIBRATE2_STEPS,
+    Arm,
+    ClassifierEventType,
+    ClassifierMode,
+    ClassifierModelType,
+    EmgMode,
+    FirmwareInfo,
     FirmwareVersion,
     HardwareRev,
-    VibrationType,
-    VIBRATE2_STEPS,
+    ImuMode,
+    Pose,
+    SleepMode,
+    SyncResult,
     UnlockType,
     UserActionType,
-    ClassifierEventType,
+    VibrationType,
+    XDirection,
 )
 
-if sys.version_info[:2] < (3, 11):
-    from typing_extensions import Self
-else:
-    from typing import Self
+if TYPE_CHECKING:
+    from .types import (
+        EMGCallback,
+        EMGProcessedCallback,
+        IMUCallback,
+        LockCallback,
+        PoseCallback,
+        SyncCallback,
+        TapCallback,
+    )
 
 
-_STANDARD_UUID_FMT = "0000{:04x}-0000-1000-8000-00805f9b34fb"
-_MYO_UUID_FMT = "d506{:04x}-a904-deb9-4748-2c7f4a124842"
+_STANDARD_UUID_FMT: Final = "0000{:04x}-0000-1000-8000-00805f9b34fb"
+_MYO_UUID_FMT: Final = "d506{:04x}-a904-deb9-4748-2c7f4a124842"
 
 
 class _BTChar(str, Enum):
@@ -76,7 +85,7 @@ _C = TypeVar("_C", bound=Callable[..., Any])
 
 class Event(Generic[_C]):
     def __init__(self) -> None:
-        self._observers: List[_C] = []
+        self._observers: list[_C] = []
 
     def register(self, callback: _C) -> _C:
         self._observers.append(callback)
@@ -87,51 +96,6 @@ class Event(Generic[_C]):
             observer(*args, **kwargs)
 
 
-class EMGCallback(Protocol):
-    def __call__(self, emg: Tuple[EmgValue, EmgValue]) -> None:
-        ...
-
-
-class EMGProcessedCallback(Protocol):
-    def __call__(self, emg: EmgValue) -> None:
-        ...
-
-
-class IMUCallback(Protocol):
-    def __call__(
-        self,
-        orientation: Tuple[float, float, float, float],
-        accelerometer: Tuple[float, float, float],
-        gyroscope: Tuple[float, float, float],
-    ) -> None:
-        ...
-
-
-class TapCallback(Protocol):
-    def __call__(self, direction: int, count: int) -> None:
-        ...
-
-
-class SyncCallback(Protocol):
-    def __call__(
-        self,
-        arm: Arm,
-        x_direction: XDirection,
-        failed_flag: Optional[SyncResult] = None,
-    ) -> None:
-        ...
-
-
-class PoseCallback(Protocol):
-    def __call__(self, pose: Pose) -> None:
-        ...
-
-
-class LockCallback(Protocol):
-    def __call__(self, locked: bool) -> None:
-        ...
-
-
 class Myo:
     """Client used to connect and interact with a Myo armband device.
 
@@ -139,28 +103,20 @@ class Myo:
     connection and disconnection.
     """
 
-    EMG: Final[Event[EMGCallback]]
-    EMG_PROCESSED: Final[Event[EMGProcessedCallback]]
-    IMU: Final[Event[IMUCallback]]
-    TAP: Final[Event[TapCallback]]
-    SYNC: Final[Event[SyncCallback]]
-    POSE: Final[Event[PoseCallback]]
-    LOCK: Final[Event[PoseCallback]]
-
-    def __init__(self, *args: Any, **kwargs: Any) -> None:  # TODO change constructor
+    def __init__(self, *args: Any, **kwargs: Any) -> None:  # TODO: change constructor
         self._device = BleakClient(*args, **kwargs)
         self._emg_mode = EmgMode.NONE
         self._imu_mode = ImuMode.NONE
         self._classifier_mode = ClassifierMode.DISABLED
         self._sleep_mode = SleepMode.NORMAL
 
-        self.EMG = Event()
-        self.EMG_PROCESSED = Event()
-        self.IMU = Event()
-        self.TAP = Event()
-        self.SYNC = Event()
-        self.POSE = Event()
-        self.LOCK = Event()
+        self.EMG: Event[EMGCallback] = Event()
+        self.EMG_PROCESSED: Event[EMGProcessedCallback] = Event()
+        self.IMU: Event[IMUCallback] = Event()
+        self.TAP: Event[TapCallback] = Event()
+        self.SYNC: Event[SyncCallback] = Event()
+        self.POSE: Event[PoseCallback] = Event()
+        self.LOCK: Event[LockCallback] = Event()
 
     async def __aenter__(self) -> Self:
         await self.connect()
@@ -168,9 +124,9 @@ class Myo:
 
     async def __aexit__(
         self,
-        exc_type: Optional[Type[BaseException]],
-        exc: Optional[BaseException],
-        tb: Optional[TracebackType],
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        tb: TracebackType | None,
     ) -> None:
         await self.disconnect()
 
@@ -196,17 +152,17 @@ class Myo:
         """Connection status between this client and the Myo armband."""
         return self._device.is_connected
 
-    @async_property  # type: ignore
+    @async_property  # type: ignore[misc]
     async def name(self) -> str:
         """Myo device name."""
         return (await self._device.read_gatt_char(_BTChar.NAME.value)).decode()
 
-    @async_property  # type: ignore
+    @async_property  # type: ignore[misc]
     async def battery(self) -> int:
         """Current battery level information in percent."""
         return ord(await self._device.read_gatt_char(_BTChar.BATTERY.value))
 
-    @async_cached_property  # type: ignore
+    @async_cached_property  # type: ignore[misc]
     async def info(self) -> FirmwareInfo:
         """Various information about supported features of the Myo firmware."""
         sn, up, act, aci, hcs, si, sku = struct.unpack(
@@ -223,7 +179,7 @@ class Myo:
             SKU(sku),
         )
 
-    @async_cached_property  # type: ignore
+    @async_cached_property  # type: ignore[misc]
     async def firmware_version(self) -> FirmwareVersion:
         """Version information for the Myo firmware."""
         major, minor, patch, hardware_rev = struct.unpack(
@@ -258,9 +214,9 @@ class Myo:
 
     async def set_mode(
         self,
-        emg_mode: Optional[EmgMode] = None,
-        imu_mode: Optional[ImuMode] = None,
-        classifier_mode: Optional[ClassifierMode] = None,
+        emg_mode: EmgMode | None = None,
+        imu_mode: ImuMode | None = None,
+        classifier_mode: ClassifierMode | None = None,
     ) -> None:
         """Set EMG, IMU and classifier modes.
 
@@ -306,10 +262,9 @@ class Myo:
     async def deep_sleep(self) -> None:
         """Put Myo into deep sleep.
 
-        If you send this command, the Myo armband will go into a deep sleep with
-        everything basically off. It can stay in this state for months (indeed, this is
-        the state the Myo armband ships in), but the only way to wake it back up is by
-        plugging it in via USB.
+        Sending this command induces the Myo armband to enter a deep sleep mode,
+        shutting down all functions. It can remain in this state for months, as it does
+        when initially shipped. To reactivate, connect it via USB.
 
         Note:
             Don't send this command lightly: a user may not know what happened or have
@@ -319,8 +274,8 @@ class Myo:
 
     async def set_led_colors(
         self,
-        logo_rgb: Tuple[int, int, int],
-        status_rgb: Tuple[int, int, int],
+        logo_rgb: tuple[int, int, int],
+        status_rgb: tuple[int, int, int],
     ) -> None:
         """Set the colors for the logo and the status LEDs.
 
@@ -335,7 +290,7 @@ class Myo:
             struct.pack("<8B", 6, 6, *logo_rgb, *status_rgb),
         )
 
-    async def vibrate2(self, *steps: Tuple[int, int]) -> None:
+    async def vibrate2(self, *steps: tuple[int, int]) -> None:
         """Extended vibrate command.
 
         Args:
@@ -415,7 +370,9 @@ class Myo:
         elif event_type == ClassifierEventType.SYNC_FAILED:
             # The only SyncResult implemented in the spec is FAILED_TOO_HARD.
             self.SYNC.notify(
-                Arm.UNKNOWN, XDirection.UNKNOWN, SyncResult.FAILED_TOO_HARD
+                Arm.UNKNOWN,
+                XDirection.UNKNOWN,
+                SyncResult.FAILED_TOO_HARD,
             )
         else:
             # Should never happen, unless spec changes.

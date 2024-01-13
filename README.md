@@ -4,15 +4,9 @@ pymyo
 [![PyPI](https://img.shields.io/pypi/v/pymyo)](https://pypi.org/project/pymyo/)
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/pymyo)](https://pypi.org/project/pymyo/)
 [![GitHub](https://img.shields.io/github/license/Crimson-Crow/pymyo)]((https://github.com/Crimson-Crow/pymyo/blob/main/LICENSE.txt))
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
 
-Description
------------
-
-`pymyo` is a platform-agnostic Python module that allows you to configure or retrieve data from a Thalmic Labs Myo armband through BLE **without** the need to have the Myo SDK installed or the need to use the original dongle.
-
-WIP
----
-Documentation coming soon! Docstrings are provided for the time being.
+`pymyo` is a platform-agnostic Python module that allows you to configure or retrieve data from a Thalmic Labs Myo armband through BLE **without** needing to use the original dongle or the Myo SDK.
 
 Issue tracker
 -------------
@@ -22,9 +16,9 @@ Please report any bugs and enhancement ideas using the [issue tracker](https://g
 Acknowledgments
 ---------------
 
-The development of this project was instigated and made possible by professor François Nougarou.
+The development of this project was made possible by professor François Nougarou.
 
 License
 -------
 
-`pymyo` is licensed under the terms of the [MIT License](https://opensource.org/licenses/MIT) (see [LICENSE.txt](https://github.com/Crimson-Crow/pymyo/blob/master/LICENSE.txt) for more information).
+`pymyo` is licensed under the terms of the [MIT License](https://opensource.org/licenses/MIT) (see [LICENSE.txt](https://github.com/Crimson-Crow/pymyo/blob/master/LICENSE.txt)).

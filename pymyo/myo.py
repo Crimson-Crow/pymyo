@@ -218,7 +218,7 @@ class Myo:
     ) -> None:
         """Set EMG, IMU and classifier modes.
 
-        Missing optional values will use the current value for that mode.
+        Optional values, if None, will use the current value for that mode.
         """
         if emg_mode is None:
             emg_mode = self._emg_mode

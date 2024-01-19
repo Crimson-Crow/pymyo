@@ -34,31 +34,26 @@ from .types import (
     ClassifierEventType,
     ClassifierMode,
     ClassifierModelType,
+    EMGCallback,
     EmgMode,
+    EMGProcessedCallback,
     FirmwareInfo,
     FirmwareVersion,
     HardwareRev,
+    IMUCallback,
     ImuMode,
+    LockCallback,
     Pose,
+    PoseCallback,
     SleepMode,
+    SyncCallback,
     SyncResult,
+    TapCallback,
     UnlockType,
     UserActionType,
     VibrationType,
     XDirection,
 )
-
-if TYPE_CHECKING:
-    from .types import (
-        EMGCallback,
-        EMGProcessedCallback,
-        IMUCallback,
-        LockCallback,
-        PoseCallback,
-        SyncCallback,
-        TapCallback,
-    )
-
 
 _STANDARD_UUID_FMT: Final = "0000{:04x}-0000-1000-8000-00805f9b34fb"
 _MYO_UUID_FMT: Final = "d506{:04x}-a904-deb9-4748-2c7f4a124842"
@@ -99,11 +94,14 @@ class Event(Generic[_C]):
 class Myo:
     """Client used to connect and interact with a Myo armband device.
 
+    All arguments passed to the constructor are forwarded to the underlying BleakClient
+    instance.
+
     Can be used as an asynchronous context manager in order to automatically manage the
     connection and disconnection.
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:  # TODO: change constructor
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         self._device = BleakClient(*args, **kwargs)
         self._emg_mode = EmgMode.NONE
         self._imu_mode = ImuMode.NONE

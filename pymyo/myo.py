@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     else:
         from typing import Self
 
-from async_property import async_cached_property, async_property
 from bleak import BleakClient
 
 from .types import (
@@ -36,7 +35,7 @@ from .types import (
     ClassifierModelType,
     EMGCallback,
     EmgMode,
-    EMGProcessedCallback,
+    EMGSmoothCallback,
     FirmwareInfo,
     FirmwareVersion,
     HardwareRev,
@@ -45,6 +44,7 @@ from .types import (
     LockCallback,
     Pose,
     PoseCallback,
+    Quaternion,
     SleepMode,
     SyncCallback,
     SyncResult,
@@ -68,21 +68,21 @@ class _BTChar(str, Enum):
     IMU = _MYO_UUID_FMT.format(0x0402)
     MOTION = _MYO_UUID_FMT.format(0x0502)
     CLASSIFIER = _MYO_UUID_FMT.format(0x0103)
-    EMG_PROCESSED = _MYO_UUID_FMT.format(0x0104)
+    EMG_SMOOTH = _MYO_UUID_FMT.format(0x0104)
     EMG0 = _MYO_UUID_FMT.format(0x0105)
     EMG1 = _MYO_UUID_FMT.format(0x0205)
     EMG2 = _MYO_UUID_FMT.format(0x0305)
     EMG3 = _MYO_UUID_FMT.format(0x0405)
 
 
-_C = TypeVar("_C", bound=Callable[..., Any])
+_C = TypeVar("_C", bound=Callable[..., None])
 
 
 class Event(Generic[_C]):
     def __init__(self) -> None:
         self._observers: list[_C] = []
 
-    def register(self, callback: _C) -> _C:
+    def __call__(self, callback: _C) -> _C:
         self._observers.append(callback)
         return callback
 
@@ -96,9 +96,19 @@ class Myo:
 
     All arguments passed to the constructor are forwarded to the underlying BleakClient
     instance.
+    (See https://bleak.readthedocs.io/en/latest/api/client.html#bleak.BleakClient)
 
     Can be used as an asynchronous context manager in order to automatically manage the
     connection and disconnection.
+
+    Attributes:
+        on_emg (Event[EMGCallback]): Event for handling EMG data.
+        on_emg_smooth (Event[EMGSmoothCallback]): Event for handling smoothed EMG data.
+        on_imu (Event[IMUCallback]): Event for handling IMU data.
+        on_tap (Event[TapCallback]): Event for handling tap gestures.
+        on_sync (Event[SyncCallback]): Event for handling synchronization events.
+        on_pose (Event[PoseCallback]): Event for handling pose changes.
+        on_lock (Event[LockCallback]): Event for handling lock events.
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -108,13 +118,13 @@ class Myo:
         self._classifier_mode = ClassifierMode.DISABLED
         self._sleep_mode = SleepMode.NORMAL
 
-        self.EMG: Event[EMGCallback] = Event()
-        self.EMG_PROCESSED: Event[EMGProcessedCallback] = Event()
-        self.IMU: Event[IMUCallback] = Event()
-        self.TAP: Event[TapCallback] = Event()
-        self.SYNC: Event[SyncCallback] = Event()
-        self.POSE: Event[PoseCallback] = Event()
-        self.LOCK: Event[LockCallback] = Event()
+        self.on_emg: Event[EMGCallback] = Event()
+        self.on_emg_smooth: Event[EMGSmoothCallback] = Event()
+        self.on_imu: Event[IMUCallback] = Event()
+        self.on_tap: Event[TapCallback] = Event()
+        self.on_sync: Event[SyncCallback] = Event()
+        self.on_pose: Event[PoseCallback] = Event()
+        self.on_lock: Event[LockCallback] = Event()
 
     async def __aenter__(self) -> Self:
         await self.connect()
@@ -129,20 +139,20 @@ class Myo:
         await self.disconnect()
 
     async def connect(self) -> None:
-        """Connect to the specified Myo device."""
+        """Connect to the Myo device."""
         await self._device.connect()
         await self._device.start_notify(_BTChar.IMU.value, self._on_imu)
         await self._device.start_notify(_BTChar.MOTION.value, self._on_motion)
         await self._device.start_notify(_BTChar.CLASSIFIER.value, self._on_classifier)
         await self._device.start_notify(
-            _BTChar.EMG_PROCESSED.value,
-            self._on_emg_processed,
+            _BTChar.EMG_SMOOTH.value,
+            self._on_emg_smooth,
         )
         for c in (_BTChar.EMG0, _BTChar.EMG1, _BTChar.EMG2, _BTChar.EMG3):
             await self._device.start_notify(c.value, self._on_emg)
 
     async def disconnect(self) -> None:
-        """Disconnect from the specified Myo device."""
+        """Disconnect from the Myo device."""
         await self._device.disconnect()
 
     @property
@@ -150,17 +160,17 @@ class Myo:
         """Connection status between this client and the Myo armband."""
         return self._device.is_connected
 
-    @async_property  # type: ignore[misc]
+    @property
     async def name(self) -> str:
         """Myo device name."""
         return (await self._device.read_gatt_char(_BTChar.NAME.value)).decode()
 
-    @async_property  # type: ignore[misc]
+    @property
     async def battery(self) -> int:
         """Current battery level information in percent."""
         return ord(await self._device.read_gatt_char(_BTChar.BATTERY.value))
 
-    @async_cached_property  # type: ignore[misc]
+    @property
     async def info(self) -> FirmwareInfo:
         """Various information about supported features of the Myo firmware."""
         sn, up, act, aci, hcs, si, sku = struct.unpack(
@@ -177,7 +187,7 @@ class Myo:
             SKU(sku),
         )
 
-    @async_cached_property  # type: ignore[misc]
+    @property
     async def firmware_version(self) -> FirmwareVersion:
         """Version information for the Myo firmware."""
         major, minor, patch, hardware_rev = struct.unpack(
@@ -335,39 +345,39 @@ class Myo:
     # Notification callbacks
     def _on_emg(self, _: Any, value: bytearray) -> None:
         emg = struct.unpack("<16b", value)
-        self.EMG.notify((emg[:8], emg[8:]))
+        self.on_emg.notify((emg[:8], emg[8:]))
 
-    def _on_emg_processed(self, _: Any, value: bytearray) -> None:
-        self.EMG_PROCESSED.notify(struct.unpack("<8Hx", value))
+    def _on_emg_smooth(self, _: Any, value: bytearray) -> None:
+        self.on_emg_smooth.notify(struct.unpack("<8Hx", value))
 
     def _on_imu(self, _: Any, value: bytearray) -> None:
         imu_data = struct.unpack("<10h", value)
-        orientation = tuple(x / 16384 for x in imu_data[:4])
+        orientation = Quaternion(*[x / 16384 for x in imu_data[:4]])
         accelerometer = tuple(x / 2048 for x in imu_data[4:7])
         gyroscope = tuple(x / 16 for x in imu_data[7:])
-        self.IMU.notify(orientation, accelerometer, gyroscope)
+        self.on_imu.notify(orientation, accelerometer, gyroscope)
 
     def _on_motion(self, _: Any, value: bytearray) -> None:
         # The only MotionEventType implemented in the spec is TAP.
         event_type, *tap_data = struct.unpack("<3B", value)
-        self.TAP.notify(*tap_data)
+        self.on_tap.notify(*tap_data)
 
     def _on_classifier(self, _: Any, value: bytearray) -> None:
         event_type, event_data = struct.unpack("<B2s", value)
         if event_type == ClassifierEventType.ARM_SYNCED:
             arm, x_direction = struct.unpack("<2B", event_data)
-            self.SYNC.notify(Arm(arm), XDirection(x_direction))
+            self.on_sync.notify(Arm(arm), XDirection(x_direction))
         elif event_type == ClassifierEventType.ARM_UNSYNCED:
-            self.SYNC.notify(Arm.UNKNOWN, XDirection.UNKNOWN)
+            self.on_sync.notify(Arm.UNKNOWN, XDirection.UNKNOWN)
         elif event_type == ClassifierEventType.POSE:
-            self.POSE.notify(Pose(int.from_bytes(event_data, "little")))
+            self.on_pose.notify(Pose(int.from_bytes(event_data, "little")))
         elif event_type == ClassifierEventType.UNLOCKED:
-            self.LOCK.notify(False)
+            self.on_lock.notify(False)  # noqa: FBT003
         elif event_type == ClassifierEventType.LOCKED:
-            self.LOCK.notify(True)
+            self.on_lock.notify(True)  # noqa: FBT003
         elif event_type == ClassifierEventType.SYNC_FAILED:
             # The only SyncResult implemented in the spec is FAILED_TOO_HARD.
-            self.SYNC.notify(
+            self.on_sync.notify(
                 Arm.UNKNOWN,
                 XDirection.UNKNOWN,
                 SyncResult.FAILED_TOO_HARD,

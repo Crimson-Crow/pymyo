@@ -1,10 +1,14 @@
+# ruff: noqa: T201, INP001
+from __future__ import annotations
+
 import asyncio
-from typing import Tuple
 
 from pymyo import Myo
 from pymyo.types import EmgMode, EmgValue, ImuMode, SleepMode
 
-MYO_ADDRESS = "D7:91:D9:1C:C3:EB"  # Put your own Myo Bluetooth address here
+# Put your own Myo Bluetooth address here or device UUID if you're on macOS.
+# BleakScanner from the bleak library can be used to find it.
+MYO_ADDRESS = "D7:91:D9:1C:C3:EB"
 
 
 async def main() -> None:
@@ -22,18 +26,19 @@ async def main() -> None:
         def on_tap(direction: int, count: int) -> None:
             print(f"Tap: direction: {direction} count: {count}")
 
-        myo.TAP.register(on_tap)
+        myo.on_tap(on_tap)
 
         # Register an event listener using a decorator
-        @myo.EMG.register
-        def on_emg(emg: Tuple[EmgValue, EmgValue]) -> None:
+        @myo.on_emg
+        def on_emg(emg: tuple[EmgValue, EmgValue]) -> None:
             print(emg)
 
         await myo.set_sleep_mode(SleepMode.NEVER_SLEEP)
+        await asyncio.sleep(1)
         await myo.set_mode(emg_mode=EmgMode.EMG, imu_mode=ImuMode.EVENTS)
 
         while True:
-            await asyncio.sleep(1)  # Do stuff
+            await asyncio.sleep(1)  # Do other stuff
 
 
 if __name__ == "__main__":

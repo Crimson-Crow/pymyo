@@ -23,7 +23,8 @@ __all__ = [
     "SyncResult",
     "FirmwareInfo",
     "EMGCallback",
-    "EMGProcessedCallback",
+    "EMGSmoothCallback",
+    "Quaternion",
     "IMUCallback",
     "LockCallback",
     "PoseCallback",
@@ -97,19 +98,16 @@ class EmgMode(IntEnum):
 
     Attributes:
         NONE: Do not send EMG data.
-        PROCESSED: Undocumented mode. Send 50 Hz rectified and smoothed positive values
+        SMOOTH: Undocumented mode. Send 50 Hz rectified and smoothed positive values
             correlated with muscle 'activation'.
         EMG: Send filtered EMG data.
         EMG_RAW: Send raw (unfiltered) EMG data.
     """
 
     NONE = 0x00
-    PROCESSED = 0x01
+    SMOOTH = 0x01
     EMG = 0x02
     EMG_RAW = 0x03
-
-
-EmgValue = Tuple[int, ...]
 
 
 class ImuMode(IntEnum):
@@ -235,7 +233,7 @@ class Arm(IntEnum):
 
 
 class XDirection(IntEnum):
-    """Possible directions for Myo's +x axis relative to a user's arm."""
+    """Possible directions for Myo's +x-axis relative to a user's arm."""
 
     WRIST = 0x01
     ELBOW = 0x02
@@ -272,20 +270,30 @@ class FirmwareInfo(NamedTuple):
     sku: SKU
 
 
+EmgValue = Tuple[int, int, int, int, int, int, int, int]
+
+
 class EMGCallback(Protocol):
     def __call__(self, emg: tuple[EmgValue, EmgValue]) -> None:
         ...
 
 
-class EMGProcessedCallback(Protocol):
+class EMGSmoothCallback(Protocol):
     def __call__(self, emg: EmgValue) -> None:
         ...
+
+
+class Quaternion(NamedTuple):
+    w: float
+    x: float
+    y: float
+    z: float
 
 
 class IMUCallback(Protocol):
     def __call__(
         self,
-        orientation: tuple[float, float, float, float],
+        orientation: Quaternion,
         accelerometer: tuple[float, float, float],
         gyroscope: tuple[float, float, float],
     ) -> None:
@@ -313,5 +321,5 @@ class PoseCallback(Protocol):
 
 
 class LockCallback(Protocol):
-    def __call__(self, locked: bool) -> None:
+    def __call__(self, locked: bool) -> None:  # noqa: FBT001
         ...

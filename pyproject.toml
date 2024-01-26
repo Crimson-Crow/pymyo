@@ -32,22 +32,23 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  "async-property >= 0.2.2",
   'typing-extensions ~= 4.4; python_version < "3.11"',
   "bleak >= 0.21.1",
 ]
 dynamic = ["version"]
 
 [project.urls]
-"Homepage" = "https://github.com/Crimson-Crow/pymyo"
-"Bug Reports" = "https://github.com/Crimson-Crow/pymyo/issues"
-"Source" = "https://github.com/Crimson-Crow/pymyo"
+Homepage = "https://github.com/Crimson-Crow/pymyo"
+Repository = "https://github.com/Crimson-Crow/pymyo.git"
+Issues = "https://github.com/Crimson-Crow/pymyo/issues"
 
 [tool.setuptools.dynamic]
-version = {attr = "pymyo.__version__"}
+version = { attr = "pymyo.__version__" }
 
 [tool.ruff]
 target-version = "py38"
+select = ["ALL"]
+ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "ANN101", "ANN401", "COM812", "ISC001"]
 
 [tool.ruff.pydocstyle]
 convention = "google"

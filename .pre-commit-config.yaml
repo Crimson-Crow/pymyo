@@ -16,12 +16,12 @@ repos:
     rev: v0.1.11
     hooks:
       - id: ruff
-        args: [ --fix ]
+        args: [--fix]
       - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
     rev: v1.8.0
     hooks:
       - id: mypy
-        args: [--strict, --ignore-missing-imports]
+        args: [--strict]
         additional_dependencies: [bleak==0.21.1]

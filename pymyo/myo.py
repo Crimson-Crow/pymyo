@@ -82,9 +82,8 @@ class Event(Generic[_C]):
     def __init__(self) -> None:
         self._observers: list[_C] = []
 
-    def __call__(self, callback: _C) -> _C:
+    def __call__(self, callback: _C) -> None:
         self._observers.append(callback)
-        return callback
 
     def notify(self, *args: Any, **kwargs: Any) -> None:
         for observer in self._observers:

@@ -32,7 +32,7 @@ classifiers = [
   "Typing :: Typed",
 ]
 dependencies = [
-  'typing-extensions ~= 4.4; python_version < "3.11"',
+  'typing-extensions ~= 4.4; python_version < "3.10"',
   "bleak >= 0.21.1",
 ]
 dynamic = ["version"]

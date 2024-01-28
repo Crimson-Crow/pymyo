@@ -33,7 +33,15 @@ __all__ = [
 ]
 
 from enum import IntEnum
-from typing import Final, NamedTuple, Protocol, Tuple
+from typing import TYPE_CHECKING, Final, NamedTuple, Protocol, Tuple
+
+if TYPE_CHECKING:
+    import sys
+
+    if sys.version_info < (3, 10):
+        from typing_extensions import TypeAlias
+    else:
+        from typing import TypeAlias
 
 
 class Pose(IntEnum):
@@ -270,7 +278,7 @@ class FirmwareInfo(NamedTuple):
     sku: SKU
 
 
-EmgValue = Tuple[int, int, int, int, int, int, int, int]
+EmgValue: TypeAlias = Tuple[int, int, int, int, int, int, int, int]
 
 
 class EMGCallback(Protocol):

@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     import sys
     from types import TracebackType
 
-    if sys.version_info[:2] < (3, 11):
+    if sys.version_info < (3, 11):
         from typing_extensions import Self
     else:
         from typing import Self

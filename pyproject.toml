@@ -12,7 +12,7 @@ requires-python = ">=3.8"
 license = { file = "LICENSE.txt" }
 keywords = ["myo", "armband", "bluetooth", "BLE"]
 classifiers = [
-  "Development Status :: 4 - Beta",
+  "Development Status :: 5 - Production/Stable",
   "Framework :: AsyncIO",
   "Intended Audience :: Developers",
   "Intended Audience :: Science/Research",

@@ -6,7 +6,9 @@ pymyo
 [![GitHub](https://img.shields.io/github/license/Crimson-Crow/pymyo)]((https://github.com/Crimson-Crow/pymyo/blob/main/LICENSE.txt))
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://makeapullrequest.com)
 
-`pymyo` is a platform-agnostic Python module that allows you to configure or retrieve data from a Thalmic Labs Myo armband through BLE **without** needing to use the original dongle or the Myo SDK.
+`pymyo` is a platform-agnostic Python module that allows you to configure or retrieve data from a Thalmic Labs Myo armband through BLE **without** requiring the original dongle or the Myo SDK.
+
+`pymyo` follows [Semantic Versioning](https://semver.org/).
 
 Issue tracker
 -------------

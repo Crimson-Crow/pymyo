@@ -1,4 +1,4 @@
-"""Collection of data structures, constants and enumerations used with a Myo armband."""
+"""Data structures, constants and enumerations needed to interact with a Myo armband."""
 from __future__ import annotations
 
 __all__ = [

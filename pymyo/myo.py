@@ -5,7 +5,6 @@ __all__ = ["Myo"]
 
 import itertools
 import struct
-from enum import Enum
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -59,7 +58,7 @@ _STANDARD_UUID_FMT: Final = "0000{:04x}-0000-1000-8000-00805f9b34fb"
 _MYO_UUID_FMT: Final = "d506{:04x}-a904-deb9-4748-2c7f4a124842"
 
 
-class _BTChar(str, Enum):
+class _BTChar:
     NAME = _STANDARD_UUID_FMT.format(0x2A00)
     BATTERY = _STANDARD_UUID_FMT.format(0x2A19)
     INFO = _MYO_UUID_FMT.format(0x0101)
@@ -138,43 +137,40 @@ class Myo:
         await self.disconnect()
 
     async def connect(self) -> None:
-        """Connect to the Myo device."""
+        """Connect to the device."""
         await self._device.connect()
-        await self._device.start_notify(_BTChar.IMU.value, self._on_imu)
-        await self._device.start_notify(_BTChar.MOTION.value, self._on_motion)
-        await self._device.start_notify(_BTChar.CLASSIFIER.value, self._on_classifier)
-        await self._device.start_notify(
-            _BTChar.EMG_SMOOTH.value,
-            self._on_emg_smooth,
-        )
+        await self._device.start_notify(_BTChar.IMU, self._on_imu)
+        await self._device.start_notify(_BTChar.MOTION, self._on_motion)
+        await self._device.start_notify(_BTChar.CLASSIFIER, self._on_classifier)
+        await self._device.start_notify(_BTChar.EMG_SMOOTH, self._on_emg_smooth)
         for c in (_BTChar.EMG0, _BTChar.EMG1, _BTChar.EMG2, _BTChar.EMG3):
-            await self._device.start_notify(c.value, self._on_emg)
+            await self._device.start_notify(c, self._on_emg)
 
     async def disconnect(self) -> None:
-        """Disconnect from the Myo device."""
+        """Disconnect from the device."""
         await self._device.disconnect()
 
     @property
     def is_connected(self) -> bool:
-        """Connection status between this client and the Myo armband."""
+        """Connection status."""
         return self._device.is_connected
 
     @property
     async def name(self) -> str:
-        """Myo device name."""
-        return (await self._device.read_gatt_char(_BTChar.NAME.value)).decode()
+        """Device name."""
+        return (await self._device.read_gatt_char(_BTChar.NAME)).decode()
 
     @property
     async def battery(self) -> int:
         """Current battery level information in percent."""
-        return ord(await self._device.read_gatt_char(_BTChar.BATTERY.value))
+        return ord(await self._device.read_gatt_char(_BTChar.BATTERY))
 
     @property
     async def info(self) -> FirmwareInfo:
-        """Various information about supported features of the Myo firmware."""
+        """Various parameters that may affect the behaviour of the device."""
         sn, up, act, aci, hcs, si, sku = struct.unpack(
             "<6sH5B7x",
-            await self._device.read_gatt_char(_BTChar.INFO.value),
+            await self._device.read_gatt_char(_BTChar.INFO),
         )
         return FirmwareInfo(
             sn,
@@ -188,10 +184,10 @@ class Myo:
 
     @property
     async def firmware_version(self) -> FirmwareVersion:
-        """Version information for the Myo firmware."""
+        """Firmware version information."""
         major, minor, patch, hardware_rev = struct.unpack(
             "<4H",
-            await self._device.read_gatt_char(_BTChar.FIRMWARE.value),
+            await self._device.read_gatt_char(_BTChar.FIRMWARE),
         )
         return FirmwareVersion(major, minor, patch, HardwareRev(hardware_rev))
 
@@ -205,7 +201,7 @@ class Myo:
 
     @property
     def imu_mode(self) -> ImuMode:
-        """Get the current IMU mode.
+        """Current IMU mode.
 
         Use `set_mode` to set a new mode.
         """
@@ -213,7 +209,7 @@ class Myo:
 
     @property
     def classifier_mode(self) -> ClassifierMode:
-        """Get the current classifier mode.
+        """Current classifier mode.
 
         Use `set_mode` to set a new mode.
         """
@@ -227,7 +223,13 @@ class Myo:
     ) -> None:
         """Set EMG, IMU and classifier modes.
 
-        Optional values, if None, will use the current value for that mode.
+        Args:
+            emg_mode (EmgMode | None): The desired EMG mode. If None, the current mode
+                will be retained.
+            imu_mode (ImuMode | None): The desired IMU mode. If None, the current mode
+                will be retained.
+            classifier_mode (ClassifierMode | None): The desired classifier mode. If
+                None, the current mode will be retained.
         """
         if emg_mode is None:
             emg_mode = self._emg_mode
@@ -236,8 +238,9 @@ class Myo:
         if classifier_mode is None:
             classifier_mode = self._classifier_mode
         await self._device.write_gatt_char(
-            _BTChar.COMMAND.value,
+            _BTChar.COMMAND,
             struct.pack("<5B", 1, 3, emg_mode, imu_mode, classifier_mode),
+            response=False,
         )
         self._emg_mode = emg_mode
         self._imu_mode = imu_mode
@@ -252,32 +255,42 @@ class Myo:
         return self._sleep_mode
 
     async def set_sleep_mode(self, sleep_mode: SleepMode) -> None:
-        """Set sleep mode."""
+        """Set the sleep mode.
+
+        Args:
+            sleep_mode (SleepMode): The desired sleep mode.
+        """
         await self._device.write_gatt_char(
-            _BTChar.COMMAND.value,
+            _BTChar.COMMAND,
             struct.pack("<3B", 9, 1, sleep_mode),
+            response=False,
         )
         self._sleep_mode = sleep_mode
 
     async def vibrate(self, vibration_type: VibrationType) -> None:
-        """Vibration command."""
+        """Vibrate according to the desired type of vibration.
+
+        Args:
+            vibration_type (VibrationType): The type of vibration.
+        """
         await self._device.write_gatt_char(
-            _BTChar.COMMAND.value,
+            _BTChar.COMMAND,
             struct.pack("<3B", 3, 1, vibration_type),
+            response=False,
         )
 
     async def deep_sleep(self) -> None:
-        """Put Myo into deep sleep.
+        """Put the device into deep sleep.
 
-        Sending this command induces the Myo armband to enter a deep sleep mode,
-        shutting down all functions. It can remain in this state for months, as it does
-        when initially shipped. To reactivate, connect it via USB.
+        Sending this command puts the Myo armband in a mode where all functions are
+        shut down. It can remain in this state for months, as it does when initially
+        shipped. To reactivate, connect the Myo via USB.
 
         Note:
             Don't send this command lightly: a user may not know what happened or have
-            the knowledge/ability to recover.
+            the ability to recover.
         """
-        await self._device.write_gatt_char(_BTChar.COMMAND.value, b"\x04\x00")
+        await self._device.write_gatt_char(_BTChar.COMMAND, b"\x04\x00", response=False)
 
     async def set_led_colors(
         self,
@@ -286,59 +299,74 @@ class Myo:
     ) -> None:
         """Set the colors for the logo and the status LEDs.
 
-        Undocumented in the official API.
+        Note:
+            Undocumented in the official API.
 
         Args:
-            logo_rgb: RGB values for the logo LED
-            status_rgb: RGB values for the status LED bar
+            logo_rgb (tuple[int, int, int]): RGB values for the logo LED.
+            status_rgb (tuple[int, int, int]): RGB values for the status LED bar.
+
+        Example:
+            >>> await myo.set_led_colors((255, 0, 0), (0, 255, 0))
         """
         await self._device.write_gatt_char(
-            _BTChar.COMMAND.value,
+            _BTChar.COMMAND,
             struct.pack("<8B", 6, 6, *logo_rgb, *status_rgb),
+            response=False,
         )
 
     async def vibrate2(self, *steps: tuple[int, int]) -> None:
-        """Extended vibrate command.
+        """Vibrate according to a sequence of customizable steps.
 
         Args:
             *steps:
-                A maximum of VIBRATE2_STEPS steps.
-                Each element must be a Tuple with two values.
-                1st value is the duration (in ms) of the vibration.
-                2nd value is the strength of vibration (0: motor off, 255: full speed).
+                A sequence of vibration steps, each represented by a two-element tuple:
+                    - Duration (int): The duration of the vibration in milliseconds.
+                    - Strength (int): The strength of the vibration (0: off, 255: max).
+
+        Raises:
+            ValueError: If the number of steps exceeds the maximum (VIBRATE2_STEPS).
+
+        Example:
+            >>> await myo.vibrate2((100, 128), (200, 192), (300, 255))
         """
         nb_steps = len(steps)
         if nb_steps > VIBRATE2_STEPS:
-            msg = f"Expected <={VIBRATE2_STEPS} vibration steps (got {nb_steps})"
+            msg = f"Expected at most {VIBRATE2_STEPS} vibration steps (got {nb_steps})"
             raise ValueError(msg)
-        # Flatten and add the potentially missing steps
+        # Flatten while adding the potentially missing steps
         flat_steps = itertools.chain(*steps, (VIBRATE2_STEPS - nb_steps) * (0, 0))
         await self._device.write_gatt_char(
-            _BTChar.COMMAND.value,
+            _BTChar.COMMAND,
             struct.pack("<2B" + VIBRATE2_STEPS * "HB", 7, 20, *flat_steps),
+            response=False,
         )
 
     async def unlock(self, unlock_type: UnlockType) -> None:
-        """Unlock Myo command.
+        """Unlock or re-lock the device.
 
-        Can also be used to force Myo to re-lock.
+        Args:
+            unlock_type (UnlockType): The type of unlock.
         """
         await self._device.write_gatt_char(
-            _BTChar.COMMAND.value,
+            _BTChar.COMMAND,
             struct.pack("<3B", 10, 1, unlock_type),
+            response=False,
         )
 
     async def user_action(
         self,
         action_type: UserActionType = UserActionType.SINGLE,
     ) -> None:
-        """User action command.
+        """Notify user that an action has been recognized / confirmed.
 
-        Notifies user that an action has been recognized / confirmed.
+        Args:
+            action_type (UserActionType): The type of user action.
         """
         await self._device.write_gatt_char(
-            _BTChar.COMMAND.value,
+            _BTChar.COMMAND,
             struct.pack("<3B", 11, 1, action_type),
+            response=False,
         )
 
     # Notification callbacks
@@ -377,9 +405,7 @@ class Myo:
         elif event_type == ClassifierEventType.SYNC_FAILED:
             # The only SyncResult implemented in the spec is FAILED_TOO_HARD.
             self.on_sync.notify(
-                Arm.UNKNOWN,
-                XDirection.UNKNOWN,
-                SyncResult.FAILED_TOO_HARD,
+                Arm.UNKNOWN, XDirection.UNKNOWN, SyncResult.FAILED_TOO_HARD
             )
         else:
             # Should never happen, unless spec changes.

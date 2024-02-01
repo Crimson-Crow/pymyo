@@ -115,6 +115,7 @@ class Myo:
         self._imu_mode = ImuMode.NONE
         self._classifier_mode = ClassifierMode.DISABLED
         self._sleep_mode = SleepMode.NORMAL
+        self._battery_notifications_enabled = False
 
         self.on_emg: Event[EMGCallback] = Event()
         self.on_emg_smooth: Event[EMGSmoothCallback] = Event()
@@ -123,6 +124,7 @@ class Myo:
         self.on_sync: Event[SyncCallback] = Event()
         self.on_pose: Event[PoseCallback] = Event()
         self.on_lock: Event[LockCallback] = Event()
+        self.on_battery: Event[Callable[[int], None]] = Event()
 
     async def __aenter__(self) -> Self:
         await self.connect()
@@ -165,6 +167,20 @@ class Myo:
         """Current battery level information in percent."""
         return ord(await self._device.read_gatt_char(_BTChar.BATTERY))
 
+    async def enable_battery_notifications(self) -> None:
+        """Enable battery notifications.
+
+        Note:
+            The battery notifications are received through the 'on_battery' event.
+        """
+        if not self._battery_notifications_enabled:
+            await self._device.start_notify(_BTChar.BATTERY, self._on_battery)
+
+    async def disable_battery_notifications(self) -> None:
+        """Disable battery notifications."""
+        if self._battery_notifications_enabled:
+            await self._device.stop_notify(_BTChar.BATTERY)
+
     @property
     async def info(self) -> FirmwareInfo:
         """Various parameters that may affect the behaviour of the device."""
@@ -195,7 +211,8 @@ class Myo:
     def emg_mode(self) -> EmgMode:
         """Current EMG mode.
 
-        Use `set_mode` to set a new mode.
+        Note:
+            Use `set_mode` to set a new mode.
         """
         return self._emg_mode
 
@@ -203,7 +220,8 @@ class Myo:
     def imu_mode(self) -> ImuMode:
         """Current IMU mode.
 
-        Use `set_mode` to set a new mode.
+        Note:
+            Use `set_mode` to set a new mode.
         """
         return self._imu_mode
 
@@ -211,7 +229,8 @@ class Myo:
     def classifier_mode(self) -> ClassifierMode:
         """Current classifier mode.
 
-        Use `set_mode` to set a new mode.
+        Note:
+            Use `set_mode` to set a new mode.
         """
         return self._classifier_mode
 
@@ -370,6 +389,9 @@ class Myo:
         )
 
     # Notification callbacks
+    def _on_battery(self, _: Any, value: bytearray) -> None:
+        self.on_battery.notify(ord(value))
+
     def _on_emg(self, _: Any, value: bytearray) -> None:
         emg = struct.unpack("<16b", value)
         self.on_emg.notify((emg[:8], emg[8:]))

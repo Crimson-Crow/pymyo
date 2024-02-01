@@ -33,6 +33,13 @@ async def main() -> None:
         def on_emg(emg: tuple[EmgValue, EmgValue]) -> None:
             print(emg)
 
+        # Enable the optional battery notifications
+        @myo.on_battery
+        def battery_callback(level: int) -> None:
+            print(f"Battery level: {level}")
+
+        await myo.enable_battery_notifications()
+
         await myo.set_sleep_mode(SleepMode.NEVER_SLEEP)
         await asyncio.sleep(1)
         await myo.set_mode(emg_mode=EmgMode.EMG, imu_mode=ImuMode.EVENTS)

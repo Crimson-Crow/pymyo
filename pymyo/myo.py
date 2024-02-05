@@ -92,14 +92,11 @@ class Event(Generic[_C]):
 class Myo:
     """Client used to connect and interact with a Myo armband device.
 
-    All arguments passed to the constructor are forwarded to the underlying BleakClient
-    instance.
-    (See https://bleak.readthedocs.io/en/latest/api/client.html#bleak.BleakClient)
-
     Can be used as an asynchronous context manager in order to automatically manage the
     connection and disconnection.
 
     Attributes:
+        on_battery (Event[Callable[[int], None]]): Event for handling the battery level.
         on_emg (Event[EMGCallback]): Event for handling EMG data.
         on_emg_smooth (Event[EMGSmoothCallback]): Event for handling smoothed EMG data.
         on_imu (Event[IMUCallback]): Event for handling IMU data.
@@ -110,6 +107,12 @@ class Myo:
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Initialize a Myo instance.
+
+        All arguments passed to the constructor are forwarded to the underlying
+        BleakClient instance.
+        (See https://bleak.readthedocs.io/en/latest/api/client.html#bleak.BleakClient)
+        """
         self._device = BleakClient(*args, **kwargs)
         self._emg_mode = EmgMode.NONE
         self._imu_mode = ImuMode.NONE

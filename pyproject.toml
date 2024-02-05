@@ -49,10 +49,12 @@ version = { attr = "pymyo.__version__" }
 
 [tool.ruff]
 target-version = "py38"
+
+[tool.ruff.lint]
 select = ["ALL"]
 ignore = ["D100", "D101", "D102", "D103", "D104", "D105", "D106", "D107", "ANN101", "ANN401", "COM812", "ISC001"]
 
-[tool.ruff.pydocstyle]
+[tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.mypy]

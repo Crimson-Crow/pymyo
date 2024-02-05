@@ -10,6 +10,18 @@ pymyo
 
 `pymyo` follows [Semantic Versioning](https://semver.org/).
 
+Installation
+------------
+
+`pymyo` can be installed using [`pip`](https://pip.pypa.io/en/stable/):
+
+    $ pip install pymyo
+
+Usage
+-----
+
+To learn how to use `pymyo`, visit the [`/examples`](https://github.com/Crimson-Crow/pymyo/tree/master/examples) directory. For additional features not covered in the examples, the library offers comprehensive docstrings for all available methods and properties.
+
 Issue tracker
 -------------
 

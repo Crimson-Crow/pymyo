@@ -1,4 +1,5 @@
 """Data structures, constants and enumerations needed to interact with a Myo armband."""
+
 from __future__ import annotations
 
 __all__ = [
@@ -282,13 +283,11 @@ EmgValue: TypeAlias = Tuple[int, int, int, int, int, int, int, int]
 
 
 class EMGCallback(Protocol):
-    def __call__(self, emg: tuple[EmgValue, EmgValue]) -> None:
-        ...
+    def __call__(self, emg: tuple[EmgValue, EmgValue]) -> None: ...
 
 
 class EMGSmoothCallback(Protocol):
-    def __call__(self, emg: EmgValue) -> None:
-        ...
+    def __call__(self, emg: EmgValue) -> None: ...
 
 
 class Quaternion(NamedTuple):
@@ -304,13 +303,11 @@ class IMUCallback(Protocol):
         orientation: Quaternion,
         accelerometer: tuple[float, float, float],
         gyroscope: tuple[float, float, float],
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 class TapCallback(Protocol):
-    def __call__(self, direction: int, count: int) -> None:
-        ...
+    def __call__(self, direction: int, count: int) -> None: ...
 
 
 class SyncCallback(Protocol):
@@ -319,13 +316,11 @@ class SyncCallback(Protocol):
         arm: Arm,
         x_direction: XDirection,
         failed_flag: SyncResult | None = None,
-    ) -> None:
-        ...
+    ) -> None: ...
 
 
 class PoseCallback(Protocol):
-    def __call__(self, pose: Pose) -> None:
-        ...
+    def __call__(self, pose: Pose) -> None: ...
 
 
 class LockCallback(Protocol):

@@ -3,17 +3,19 @@ from __future__ import annotations
 
 import asyncio
 
+from bleak import BleakScanner
+
 from pymyo import Myo
 from pymyo.types import EmgMode, EmgValue, ImuMode, SleepMode
 
 # Put your own Myo Bluetooth address here or device UUID if you're on macOS.
-# BleakScanner from the bleak library can be used to find it.
 MYO_ADDRESS = "D7:91:D9:1C:C3:EB"
 
 
 async def main() -> None:
     # You can use an asynchronous context manager to manage connection/disconnection
-    async with Myo(MYO_ADDRESS) as myo:
+    myo_device = await BleakScanner.find_device_by_address(MYO_ADDRESS)
+    async with Myo(myo_device) as myo:
         # Access information using awaitable properties
         print("Device name:", await myo.name)
         print("Battery level:", await myo.battery)

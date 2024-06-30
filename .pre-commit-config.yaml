@@ -24,4 +24,4 @@ repos:
     hooks:
       - id: mypy
         args: [--strict]
-        additional_dependencies: [bleak==0.21.1]
+        additional_dependencies: [bleak==0.22.0]

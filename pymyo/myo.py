@@ -1,4 +1,5 @@
 """The Myo client interface module."""
+
 from __future__ import annotations
 
 __all__ = ["Myo"]
@@ -165,6 +166,14 @@ class Myo:
         """Device name."""
         return (await self._device.read_gatt_char(_BTChar.NAME)).decode()
 
+    async def set_name(self, name: str) -> None:
+        """Set the device name.
+
+        Note:
+            May not work on all OSes.
+        """
+        await self._device.write_gatt_char(_BTChar.NAME, name.encode(), response=True)
+
     @property
     async def battery(self) -> int:
         """Current battery level information in percent."""
@@ -178,11 +187,13 @@ class Myo:
         """
         if not self._battery_notifications_enabled:
             await self._device.start_notify(_BTChar.BATTERY, self._on_battery)
+            self._battery_notifications_enabled = True
 
     async def disable_battery_notifications(self) -> None:
         """Disable battery notifications."""
         if self._battery_notifications_enabled:
             await self._device.stop_notify(_BTChar.BATTERY)
+            self._battery_notifications_enabled = False
 
     @property
     async def info(self) -> FirmwareInfo:
@@ -262,7 +273,7 @@ class Myo:
         await self._device.write_gatt_char(
             _BTChar.COMMAND,
             struct.pack("<5B", 1, 3, emg_mode, imu_mode, classifier_mode),
-            response=False,
+            response=True,
         )
         self._emg_mode = emg_mode
         self._imu_mode = imu_mode
@@ -285,7 +296,7 @@ class Myo:
         await self._device.write_gatt_char(
             _BTChar.COMMAND,
             struct.pack("<3B", 9, 1, sleep_mode),
-            response=False,
+            response=True,
         )
         self._sleep_mode = sleep_mode
 
@@ -298,7 +309,7 @@ class Myo:
         await self._device.write_gatt_char(
             _BTChar.COMMAND,
             struct.pack("<3B", 3, 1, vibration_type),
-            response=False,
+            response=True,
         )
 
     async def deep_sleep(self) -> None:
@@ -312,7 +323,7 @@ class Myo:
             Don't send this command lightly: a user may not know what happened or have
             the ability to recover.
         """
-        await self._device.write_gatt_char(_BTChar.COMMAND, b"\x04\x00", response=False)
+        await self._device.write_gatt_char(_BTChar.COMMAND, b"\x04\x00", response=True)
 
     async def set_led_colors(
         self,
@@ -334,7 +345,7 @@ class Myo:
         await self._device.write_gatt_char(
             _BTChar.COMMAND,
             struct.pack("<8B", 6, 6, *logo_rgb, *status_rgb),
-            response=False,
+            response=True,
         )
 
     async def vibrate2(self, *steps: tuple[int, int]) -> None:
@@ -361,7 +372,7 @@ class Myo:
         await self._device.write_gatt_char(
             _BTChar.COMMAND,
             struct.pack("<2B" + VIBRATE2_STEPS * "HB", 7, 20, *flat_steps),
-            response=False,
+            response=True,
         )
 
     async def unlock(self, unlock_type: UnlockType) -> None:
@@ -373,7 +384,7 @@ class Myo:
         await self._device.write_gatt_char(
             _BTChar.COMMAND,
             struct.pack("<3B", 10, 1, unlock_type),
-            response=False,
+            response=True,
         )
 
     async def user_action(
@@ -388,7 +399,7 @@ class Myo:
         await self._device.write_gatt_char(
             _BTChar.COMMAND,
             struct.pack("<3B", 11, 1, action_type),
-            response=False,
+            response=True,
         )
 
     # Notification callbacks

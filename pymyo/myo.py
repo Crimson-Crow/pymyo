@@ -25,6 +25,7 @@ if TYPE_CHECKING:
         from typing import Self
 
 from bleak import BleakClient
+from bleak.exc import BleakCharacteristicNotFoundError
 
 from .types import (
     SKU,
@@ -88,6 +89,10 @@ class Event(Generic[_C]):
     def notify(self, *args: Any, **kwargs: Any) -> None:
         for observer in self._observers:
             observer(*args, **kwargs)
+
+
+class UnsupportedFeatureError(Exception):
+    pass
 
 
 class Myo:
@@ -169,10 +174,16 @@ class Myo:
     async def set_name(self, name: str) -> None:
         """Set the device name.
 
-        Note:
-            May not work on all OSes.
+        Args:
+            name (str): The new name to set for the device.
         """
-        await self._device.write_gatt_char(_BTChar.NAME, name.encode(), response=True)
+        try:
+            await self._device.write_gatt_char(
+                _BTChar.NAME, name.encode(), response=True
+            )
+        except BleakCharacteristicNotFoundError as e:
+            msg = "Backend does not support changing the device name"
+            raise UnsupportedFeatureError(msg) from e
 
     @property
     async def battery(self) -> int:
@@ -186,7 +197,11 @@ class Myo:
             The battery notifications are received through the 'on_battery' event.
         """
         if not self._battery_notifications_enabled:
-            await self._device.start_notify(_BTChar.BATTERY, self._on_battery)
+            try:
+                await self._device.start_notify(_BTChar.BATTERY, self._on_battery)
+            except BleakCharacteristicNotFoundError as e:
+                msg = "Backend does not support enabling battery notifications"
+                raise UnsupportedFeatureError(msg) from e
             self._battery_notifications_enabled = True
 
     async def disable_battery_notifications(self) -> None:
@@ -358,7 +373,7 @@ class Myo:
                     - Strength (int): The strength of the vibration (0: off, 255: max).
 
         Raises:
-            ValueError: If the number of steps exceeds the maximum (VIBRATE2_STEPS).
+            ValueError: If the number of steps exceeds the maximum (6).
 
         Example:
             >>> await myo.vibrate2((100, 128), (200, 192), (300, 255))

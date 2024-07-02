@@ -51,6 +51,7 @@ from .types import (
     SyncResult,
     TapCallback,
     UnlockType,
+    UnsupportedFeatureError,
     UserActionType,
     VibrationType,
     XDirection,
@@ -89,10 +90,6 @@ class Event(Generic[_C]):
     def notify(self, *args: Any, **kwargs: Any) -> None:
         for observer in self._observers:
             observer(*args, **kwargs)
-
-
-class UnsupportedFeatureError(Exception):
-    pass
 
 
 class Myo:

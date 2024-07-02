@@ -31,6 +31,7 @@ __all__ = [
     "PoseCallback",
     "SyncCallback",
     "TapCallback",
+    "UnsupportedFeatureError",
 ]
 
 from enum import IntEnum
@@ -326,3 +327,7 @@ class PoseCallback(Protocol):
 class LockCallback(Protocol):
     def __call__(self, locked: bool) -> None:  # noqa: FBT001
         ...
+
+
+class UnsupportedFeatureError(Exception):
+    pass

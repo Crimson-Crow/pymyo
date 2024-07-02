@@ -6,7 +6,7 @@ import asyncio
 from bleak import BleakScanner
 
 from pymyo import Myo
-from pymyo.types import EmgMode, EmgValue, ImuMode, SleepMode
+from pymyo.types import EmgMode, EmgValue, ImuMode, SleepMode, UnsupportedFeatureError
 
 # Put your own Myo Bluetooth address here or device UUID if you're on macOS.
 MYO_ADDRESS = "D7:91:D9:1C:C3:EB"
@@ -40,7 +40,10 @@ async def main() -> None:
         def battery_callback(level: int) -> None:
             print(f"Battery level: {level}")
 
-        await myo.enable_battery_notifications()
+        try:
+            await myo.enable_battery_notifications()
+        except UnsupportedFeatureError as e:
+            print(e)
 
         await myo.set_sleep_mode(SleepMode.NEVER_SLEEP)
         await asyncio.sleep(1)

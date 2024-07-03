@@ -102,6 +102,10 @@ class FirmwareVersion(NamedTuple):
     patch: int
     hardware_rev: HardwareRev
 
+    def __str__(self) -> str:
+        hardware_rev = self.hardware_rev.name.replace("_", "-")
+        return f"{self.major}.{self.minor}.{self.patch} {hardware_rev}"
+
 
 class EmgMode(IntEnum):
     """EMG modes.
